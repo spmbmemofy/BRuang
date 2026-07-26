@@ -25,7 +25,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Instansi ini bersifat privat' }, { status: 403 });
     }
 
-    return NextResponse.json(room);
+    // Attach items in this room as computed facilities
+    const items = db.items || [];
+    const itemsInRoom = items.filter(i => i.currentLocation === room.name && i.adminId === room.adminId);
+    const computedRoom = {
+      ...room,
+      computedFacilities: [...room.facilities, ...itemsInRoom.map(i => i.name)]
+    };
+
+    return NextResponse.json(computedRoom);
   } catch (error) {
     console.error('Error fetching public room details:', error);
     return NextResponse.json({ error: 'Terjadi kesalahan sistem' }, { status: 500 });

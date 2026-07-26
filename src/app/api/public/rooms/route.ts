@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRooms, readDb } from '@/lib/db';
+import { getRooms, readDb, getItems } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,8 +19,17 @@ export async function GET(request: NextRequest) {
 
     const rooms = await getRooms();
     const filteredRooms = rooms.filter(r => r.adminId === adminId);
+    const items = await getItems();
 
-    return NextResponse.json(filteredRooms);
+    const computedRooms = filteredRooms.map(room => {
+      const itemsInRoom = items.filter(i => i.currentLocation === room.name && i.adminId === adminId);
+      return {
+        ...room,
+        computedFacilities: [...room.facilities, ...itemsInRoom.map(i => i.name)]
+      };
+    });
+
+    return NextResponse.json(computedRooms);
   } catch (error) {
     console.error('Error fetching public rooms:', error);
     return NextResponse.json(

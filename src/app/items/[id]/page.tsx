@@ -19,8 +19,13 @@ export default function ItemDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Tabs for Item specifics
-  const [activeTab, setActiveTab] = useState<'booking' | 'location'>('booking');
+  // Tab State
+  const [activeTab, setActiveTab] = useState<'booking' | 'settings'>('booking');
+
+  // Edit/Delete States
+  const [editLoading, setEditLoading] = useState(false);
+  const [editMsg, setEditMsg] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [newLocation, setNewLocation] = useState('');
   const [updateLocLoading, setUpdateLocLoading] = useState(false);
   const [updateLocMsg, setUpdateLocMsg] = useState('');
@@ -197,27 +202,46 @@ export default function ItemDetailPage({ params }: PageProps) {
     }
   };
 
-  const handleUpdateLocation = async (e: React.FormEvent) => {
+  const handleEditItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    setUpdateLocLoading(true);
-    setUpdateLocMsg('');
-
+    if (!item) return;
+    setEditLoading(true);
+    setEditMsg('');
     try {
-      const res = await fetch(`/api/items/${itemId}`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/items/${item.id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentLocation: newLocation })
+        body: JSON.stringify({
+          name: item.name,
+          category: item.category,
+          currentLocation: newLocation,
+          description: item.description,
+        }),
       });
-      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Gagal update lokasi');
+      if (!res.ok) throw new Error(data.error || 'Gagal menyimpan perubahan');
       
-      setUpdateLocMsg('✅ Lokasi berhasil diperbarui!');
-      await fetchItemAndBookings();
+      setEditMsg('✅ Perubahan berhasil disimpan!');
+      fetchItemAndBookings();
     } catch (err: any) {
-      setUpdateLocMsg(`❌ ${err.message}`);
+      setEditMsg(`❌ ${err.message}`);
     } finally {
-      setUpdateLocLoading(false);
+      setEditLoading(false);
+    }
+  };
+
+  const handleDeleteItem = async () => {
+    if (!item) return;
+    if (!confirm('Apakah Anda yakin ingin menghapus barang ini beserta seluruh riwayat peminjamannya? Tindakan ini tidak dapat dibatalkan.')) return;
+    
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/items/${item.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Gagal menghapus barang');
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+      setDeleteLoading(false);
     }
   };
 
@@ -299,35 +323,59 @@ export default function ItemDetailPage({ params }: PageProps) {
                   📅 Pinjam Barang
                 </button>
                 <button 
-                  className={`tab-btn ${activeTab === 'location' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('location')}
+                  className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('settings')}
                 >
-                  📍 Pindah Lokasi
+                  ⚙️ Pengaturan Barang
                 </button>
               </div>
 
-              {activeTab === 'location' && (
-                <div className="location-update-panel animate-slide-up mt-4">
-                  <h5>Update Lokasi Barang Saat Ini</h5>
-                  <p className="loc-helper">Lokasi tercatat: <strong>{item.currentLocation}</strong></p>
-                  
-                  <form onSubmit={handleUpdateLocation} className="loc-form">
-                    <select
-                      className="form-input select-input"
-                      value={newLocation}
-                      onChange={(e) => setNewLocation(e.target.value)}
-                      required
-                    >
-                      <option value="">-- Pilih Ruangan --</option>
-                      {rooms.map((room) => (
-                        <option key={room.id} value={room.name}>{room.name}</option>
-                      ))}
-                    </select>
-                    <button type="submit" disabled={updateLocLoading} className="btn-neon mt-2">
-                      {updateLocLoading ? 'Menyimpan...' : 'Update Lokasi'}
+              {activeTab === 'settings' && (
+                <div className="settings-panel animate-slide-up mt-4">
+                  <div className="glass-panel p-6">
+                    <h3 className="mb-4">Edit Data Barang</h3>
+                    <form onSubmit={handleEditItem} className="edit-form">
+                      <div className="form-group mb-4">
+                        <label className="form-label text-sm text-muted">Nama Barang</label>
+                        <input type="text" className="form-input" value={item.name} onChange={e => setItem({...item, name: e.target.value})} required />
+                      </div>
+                      <div className="form-group mb-4">
+                        <label className="form-label text-sm text-muted">Kategori</label>
+                        <input type="text" className="form-input" value={item.category} onChange={e => setItem({...item, category: e.target.value})} required />
+                      </div>
+                      <div className="form-group mb-4">
+                        <label className="form-label text-sm text-muted">Deskripsi Barang</label>
+                        <textarea className="form-input" rows={3} value={item.description} onChange={e => setItem({...item, description: e.target.value})} required></textarea>
+                      </div>
+                      <div className="form-group mb-4">
+                        <label className="form-label text-sm text-muted">Lokasi Saat Ini</label>
+                        <p className="loc-helper mb-2">Lokasi tercatat sebelumnya: <strong>{item.currentLocation}</strong></p>
+                        <select
+                          className="form-input select-input"
+                          value={newLocation}
+                          onChange={(e) => setNewLocation(e.target.value)}
+                          required
+                        >
+                          <option value="">-- Pilih Ruangan --</option>
+                          {rooms.map((room) => (
+                            <option key={room.id} value={room.name}>{room.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button type="submit" disabled={editLoading} className="btn-neon w-full">
+                        {editLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
+                      </button>
+                      {editMsg && <p className={`mt-2 text-sm ${editMsg.startsWith('✅') ? 'text-emerald-400' : 'text-red-400'}`}>{editMsg}</p>}
+                    </form>
+                  </div>
+
+                  <div className="glass-panel p-6 mt-6 border-red-500" style={{ borderColor: 'rgba(239,68,68,0.3)' }}>
+                    <h3 className="text-red-400 mb-2">Zona Berbahaya</h3>
+                    <p className="text-sm text-muted mb-4">Tindakan menghapus barang akan menghapus semua jadwal secara permanen.</p>
+                    <button type="button" onClick={handleDeleteItem} disabled={deleteLoading} className="btn-neon-outline w-full" style={{ color: '#ef4444', borderColor: '#ef4444' }}>
+                      {deleteLoading ? 'Menghapus...' : '🗑️ Hapus Barang Ini'}
                     </button>
-                  </form>
-                  {updateLocMsg && <p className={`loc-msg ${updateLocMsg.startsWith('✅') ? 'success' : 'error'}`}>{updateLocMsg}</p>}
+                  </div>
                 </div>
               )}
             </div>
@@ -522,6 +570,15 @@ export default function ItemDetailPage({ params }: PageProps) {
         .tab-btn { flex: 1; padding: 10px; font-size: 0.9rem; font-weight: 600; color: var(--text-muted); background: transparent; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
         .tab-btn:hover { color: var(--foreground); }
         .tab-btn.active { background: var(--bg-card); color: var(--foreground); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        
+        .p-6 { padding: 24px; }
+        .mb-4 { margin-bottom: 16px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mt-6 { margin-top: 24px; }
+        .text-sm { font-size: 0.875rem; }
+        .text-red-400 { color: #f87171; }
+        .text-emerald-400 { color: #34d399; }
+        .w-full { width: 100%; }
 
         .location-update-panel { padding: 16px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid rgba(148,163,184,0.1); }
         .location-update-panel h5 { margin-bottom: 4px; color: var(--foreground); }

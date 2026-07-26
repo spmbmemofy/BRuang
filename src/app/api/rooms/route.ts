@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRooms, addRoom } from '@/lib/db';
+import { getRooms, addRoom, getItems } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 export async function GET() {
@@ -18,8 +18,17 @@ export async function GET() {
     // Fallback: If room has no adminId (seeded data), you might want to show it or hide it.
     // Let's hide it unless it explicitly belongs to the targetAdminId.
     const filteredRooms = rooms.filter(r => r.adminId === targetAdminId || !r.adminId);
+    const items = await getItems();
 
-    return NextResponse.json(filteredRooms);
+    const computedRooms = filteredRooms.map(room => {
+      const itemsInRoom = items.filter(i => i.currentLocation === room.name && i.adminId === room.adminId);
+      return {
+        ...room,
+        computedFacilities: [...room.facilities, ...itemsInRoom.map(i => i.name)]
+      };
+    });
+
+    return NextResponse.json(computedRooms);
   } catch (error) {
     console.error('Error fetching rooms:', error);
     return NextResponse.json(

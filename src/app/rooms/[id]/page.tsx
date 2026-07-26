@@ -20,6 +20,14 @@ export default function RoomDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Tab State
+  const [activeTab, setActiveTab] = useState<'booking' | 'settings'>('booking');
+
+  // Edit/Delete States
+  const [editLoading, setEditLoading] = useState(false);
+  const [editMsg, setEditMsg] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   // Calendar State
   const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
   const [selectedDate, setSelectedDate] = useState(todayStr);
@@ -111,6 +119,49 @@ export default function RoomDetailPage({ params }: PageProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecurring]);
+
+  // Edit Handlers
+  const handleEditRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!room) return;
+    setEditLoading(true);
+    setEditMsg('');
+    try {
+      const res = await fetch(`/api/rooms/${room.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: room.name,
+          description: room.description,
+          capacity: room.capacity,
+          facilities: room.facilities,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal menyimpan perubahan');
+      setEditMsg('✅ Perubahan berhasil disimpan!');
+      fetchRoomAndBookings();
+    } catch (err: any) {
+      setEditMsg(`❌ ${err.message}`);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDeleteRoom = async () => {
+    if (!room) return;
+    if (!confirm('Apakah Anda yakin ingin menghapus ruangan ini beserta seluruh riwayat peminjamannya? Tindakan ini tidak dapat dibatalkan.')) return;
+    
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/rooms/${room.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Gagal menghapus ruangan');
+      window.location.href = '/dashboard';
+    } catch (err: any) {
+      alert(`Error: ${err.message}`);
+      setDeleteLoading(false);
+    }
+  };
 
   // Form submission handler
   const handleBookingSubmit = async (e: React.FormEvent) => {
@@ -270,7 +321,7 @@ export default function RoomDetailPage({ params }: PageProps) {
               <div className="profile-facilities">
                 <h5>Fasilitas Ruangan:</h5>
                 <div className="facility-tags">
-                  {room.facilities.map((fac, idx) => (
+                  {(room.computedFacilities || room.facilities).map((fac, idx) => (
                     <span key={idx} className="facility-pill">{fac}</span>
                   ))}
                 </div>
@@ -288,16 +339,33 @@ export default function RoomDetailPage({ params }: PageProps) {
           </section>
         </div>
 
-        {/* Right Column: Calendar & Booking List */}
+        {/* Right Column: Calendar & Booking List OR Settings */}
         <div className="layout-col-right">
-          <MonthlyCalendar 
-            selectedDate={selectedDate} 
-            onSelectDate={setSelectedDate} 
-            bookedDates={bookedDates} 
-          />
+          {/* Tabs for Room Actions */}
+          <div className="tabs-container">
+            <button 
+              className={`tab-btn ${activeTab === 'booking' ? 'active' : ''}`}
+              onClick={() => setActiveTab('booking')}
+            >
+              📅 Jadwal Peminjaman
+            </button>
+            <button 
+              className={`tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+              onClick={() => setActiveTab('settings')}
+            >
+              ⚙️ Pengaturan Ruangan
+            </button>
+          </div>
 
-          <div className="glass-panel booking-list-panel mt-4">
-            <div className="list-header">
+          <div style={{ display: activeTab === 'booking' ? 'block' : 'none' }}>
+            <MonthlyCalendar 
+              selectedDate={selectedDate} 
+              onSelectDate={setSelectedDate} 
+              bookedDates={bookedDates} 
+            />
+
+            <div className="glass-panel booking-list-panel mt-4">
+              <div className="list-header">
               <div>
                 <h3>📅 Jadwal Pemakaian</h3>
                 <p className="selected-date-text">{formatIndonesianDate(selectedDate)}</p>
@@ -328,6 +396,45 @@ export default function RoomDetailPage({ params }: PageProps) {
               </div>
             )}
           </div>
+          </div>
+          
+          {activeTab === 'settings' && (
+            <div className="settings-panel animate-slide-up mt-4">
+              <div className="glass-panel p-6">
+                <h3 className="mb-4">Edit Data Ruangan</h3>
+                <form onSubmit={handleEditRoom} className="edit-form">
+                  <div className="form-group mb-4">
+                    <label className="form-label text-sm text-muted">Nama Ruangan</label>
+                    <input type="text" className="form-input" value={room.name} onChange={e => setRoom({...room, name: e.target.value})} required />
+                  </div>
+                  <div className="form-group mb-4">
+                    <label className="form-label text-sm text-muted">Kapasitas</label>
+                    <input type="number" className="form-input" value={room.capacity} onChange={e => setRoom({...room, capacity: parseInt(e.target.value) || 0})} required />
+                  </div>
+                  <div className="form-group mb-4">
+                    <label className="form-label text-sm text-muted">Deskripsi</label>
+                    <textarea className="form-input" rows={3} value={room.description} onChange={e => setRoom({...room, description: e.target.value})} required></textarea>
+                  </div>
+                  <div className="form-group mb-4">
+                    <label className="form-label text-sm text-muted">Fasilitas (pisahkan dengan koma)</label>
+                    <input type="text" className="form-input" value={room.facilities.join(', ')} onChange={e => setRoom({...room, facilities: e.target.value.split(',').map(f => f.trim()).filter(Boolean)})} required />
+                  </div>
+                  <button type="submit" disabled={editLoading} className="btn-neon w-full">
+                    {editLoading ? 'Menyimpan...' : 'Simpan Perubahan'}
+                  </button>
+                  {editMsg && <p className={`mt-2 text-sm ${editMsg.startsWith('✅') ? 'text-emerald-400' : 'text-red-400'}`}>{editMsg}</p>}
+                </form>
+              </div>
+
+              <div className="glass-panel p-6 mt-6 border-red-500" style={{ borderColor: 'rgba(239,68,68,0.3)' }}>
+                <h3 className="text-red-400 mb-2">Zona Berbahaya</h3>
+                <p className="text-sm text-muted mb-4">Tindakan menghapus ruangan akan menghapus semua jadwal secara permanen.</p>
+                <button type="button" onClick={handleDeleteRoom} disabled={deleteLoading} className="btn-neon-outline w-full" style={{ color: '#ef4444', borderColor: '#ef4444' }}>
+                  {deleteLoading ? 'Menghapus...' : '🗑️ Hapus Ruangan Ini'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -484,9 +591,23 @@ export default function RoomDetailPage({ params }: PageProps) {
         .facility-tags { display: flex; flex-wrap: wrap; gap: 8px; }
         .facility-pill { background: var(--bg-slate); border: 1px solid rgba(148, 163, 184, 0.15); color: var(--text-light); padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: 500; }
         
-        .profile-guidelines { margin-top: 24px; border-top: 1px solid rgba(148, 163, 184, 0.1); padding-top: 20px; }
-        .guidelines-list { padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
-        .guidelines-list li { font-size: 0.85rem; color: var(--text-light); line-height: 1.5; }
+        .profile-guidelines { margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(148, 163, 184, 0.1); }
+        .guidelines-list { margin-top: 12px; padding-left: 20px; font-size: 0.85rem; color: var(--text-muted); line-height: 1.6; }
+        .guidelines-list li { margin-bottom: 6px; }
+
+        .tabs-container { display: flex; gap: 4px; background: var(--bg-slate); padding: 4px; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.1); margin-bottom: 24px; }
+        .tab-btn { flex: 1; padding: 10px; font-size: 0.9rem; font-weight: 600; color: var(--text-muted); background: transparent; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .tab-btn:hover { color: var(--foreground); }
+        .tab-btn.active { background: var(--bg-card); color: var(--foreground); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        
+        .p-6 { padding: 24px; }
+        .mb-4 { margin-bottom: 16px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mt-6 { margin-top: 24px; }
+        .text-sm { font-size: 0.875rem; }
+        .text-red-400 { color: #f87171; }
+        .text-emerald-400 { color: #34d399; }
+        .w-full { width: 100%; }
 
         .booking-list-panel { padding: 20px; }
         .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); padding-bottom: 16px;}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRooms, getItems, getBookings, readDb, writeDb } from '@/lib/db';
+import { getRooms, getItems, getBookings, readDb, addBookings } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -163,8 +163,7 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
     }));
 
-    db.bookings.push(...newEntries);
-    await writeDb(db);
+    await addBookings(newEntries);
 
     return NextResponse.json(
       { 

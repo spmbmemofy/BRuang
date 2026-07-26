@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { readDb, writeDb } from '@/lib/db';
+import { readDb, updateUserProfile } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 export async function PUT(request: Request) {
@@ -33,18 +33,21 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'User tidak ditemukan.' }, { status: 404 });
     }
 
-    // Update user
-    db.users[userIndex].username = username;
-    db.users[userIndex].institutionName = institutionName;
-    db.users[userIndex].contactInfo = contactInfo;
-    
+    const updateData: any = {
+      username,
+      institutionName,
+      contactInfo
+    };
     if (visibility === 'public' || visibility === 'private') {
-      db.users[userIndex].visibility = visibility;
+      updateData.visibility = visibility;
     }
 
-    await writeDb(db);
+    await updateUserProfile(userSession.userId, updateData);
+    
+    // Merge for response
+    const updatedUser = { ...db.users[userIndex], ...updateData };
 
-    return NextResponse.json({ message: 'Profil berhasil diperbarui.', user: db.users[userIndex] });
+    return NextResponse.json({ message: 'Profil berhasil diperbarui.', user: updatedUser });
   } catch (error) {
     console.error('Error updating profile:', error);
     return NextResponse.json({ error: 'Terjadi kesalahan sistem' }, { status: 500 });

@@ -1,37 +1,37 @@
-import fs from 'fs/promises';
-import path from 'path';
+import { supabase } from './supabase';
 
 export interface Room {
   id: string;
   name: string;
   capacity: number;
   facilities: string[];
+  computedFacilities?: string[];
   image: string;
   description: string;
-  operatingHours: string; // "08:00 - 18:00"
-  guidelines: string[];   // List of rules/guidelines
-  adminId?: string;       // ID of the Admin who owns this room
+  operatingHours: string;
+  guidelines: string[];
+  adminId?: string;
 }
 
 export interface Item {
   id: string;
   name: string;
   category: string;
-  currentLocation: string; // Where the item is currently located
+  currentLocation: string;
   description: string;
   image?: string;
-  adminId?: string;        // ID of the Admin who owns this item
+  adminId?: string;
 }
 
 export interface Booking {
   id: string;
-  targetId: string; // roomId or itemId
+  targetId: string;
   targetType: 'room' | 'item';
   user: string;
-  contactInfo: string; // e.g., Phone Number / WhatsApp
-  date: string; // YYYY-MM-DD
-  startTime: string; // HH:MM
-  endTime: string; // HH:MM
+  contactInfo: string;
+  date: string;
+  startTime: string;
+  endTime: string;
   purpose: string;
   createdAt: string;
 }
@@ -44,9 +44,9 @@ export interface User {
   status: 'pending' | 'active';
   contactInfo?: string;
   createdAt: string;
-  institutionName?: string; // For Admin: The name of their institution
-  adminId?: string;         // For Employee: The ID of the Admin they belong to
-  visibility?: 'public' | 'private'; // For Admin: Privacy status of their institution
+  institutionName?: string;
+  adminId?: string;
+  visibility?: 'public' | 'private';
 }
 
 export interface DatabaseSchema {
@@ -56,112 +56,120 @@ export interface DatabaseSchema {
   users: User[];
 }
 
-const dbPath = path.join(process.cwd(), 'src/data/db.json');
-
 export async function readDb(): Promise<DatabaseSchema> {
-  try {
-    const data = await fs.readFile(dbPath, 'utf8');
-    const parsed = JSON.parse(data);
-    if (!parsed.users) parsed.users = [];
-    return parsed;
-  } catch (error) {
-    console.error('Error reading database file, returning empty schema:', error);
-    return { rooms: [], items: [], bookings: [], users: [] };
-  }
-}
-
-export async function writeDb(data: DatabaseSchema): Promise<void> {
-  try {
-    await fs.writeFile(dbPath, JSON.stringify(data, null, 2), 'utf8');
-  } catch (error) {
-    console.error('Error writing to database file:', error);
-    throw new Error('Gagal menyimpan data ke database.');
-  }
+  const [
+    { data: rooms },
+    { data: items },
+    { data: bookings },
+    { data: users }
+  ] = await Promise.all([
+    supabase.from('rooms').select('*'),
+    supabase.from('items').select('*'),
+    supabase.from('bookings').select('*'),
+    supabase.from('users').select('*')
+  ]);
+  
+  return {
+    rooms: rooms || [],
+    items: items || [],
+    bookings: bookings || [],
+    users: users || []
+  };
 }
 
 export async function getRooms(): Promise<Room[]> {
-  const db = await readDb();
-  return db.rooms;
+  const { data } = await supabase.from('rooms').select('*');
+  return data || [];
 }
 
 export async function addRoom(room: Room): Promise<void> {
-  const db = await readDb();
-  db.rooms.push(room);
-  await writeDb(db);
+  const { error } = await supabase.from('rooms').insert([room]);
+  if (error) throw new Error(error.message);
+}
+
+export async function updateRoom(id: string, updatedData: Partial<Room>): Promise<boolean> {
+  const { error } = await supabase.from('rooms').update(updatedData).eq('id', id);
+  return !error;
+}
+
+export async function deleteRoom(id: string): Promise<boolean> {
+  await supabase.from('bookings').delete().eq('targetId', id);
+  const { error } = await supabase.from('rooms').delete().eq('id', id);
+  return !error;
 }
 
 export async function getItems(): Promise<Item[]> {
-  const db = await readDb();
-  return db.items || [];
+  const { data } = await supabase.from('items').select('*');
+  return data || [];
 }
 
 export async function addItem(item: Item): Promise<void> {
-  const db = await readDb();
-  if (!db.items) db.items = [];
-  db.items.push(item);
-  await writeDb(db);
+  const { error } = await supabase.from('items').insert([item]);
+  if (error) throw new Error(error.message);
 }
 
 export async function getBookings(): Promise<Booking[]> {
-  const db = await readDb();
-  return db.bookings;
+  const { data } = await supabase.from('bookings').select('*');
+  return data || [];
 }
 
 export async function addBooking(booking: Booking): Promise<void> {
-  const db = await readDb();
-  db.bookings.push(booking);
-  await writeDb(db);
+  const { error } = await supabase.from('bookings').insert([booking]);
+  if (error) throw new Error(error.message);
+}
+
+export async function addBookings(bookings: Booking[]): Promise<void> {
+  const { error } = await supabase.from('bookings').insert(bookings);
+  if (error) throw new Error(error.message);
 }
 
 export async function addItems(items: Item[]): Promise<void> {
-  const db = await readDb();
-  if (!db.items) db.items = [];
-  db.items.push(...items);
-  await writeDb(db);
+  const { error } = await supabase.from('items').insert(items);
+  if (error) throw new Error(error.message);
 }
 
 export async function updateItemLocation(id: string, newLocation: string): Promise<boolean> {
-  const db = await readDb();
-  if (!db.items) return false;
-  
-  const index = db.items.findIndex(i => i.id === id);
-  if (index === -1) return false;
-  
-  db.items[index].currentLocation = newLocation;
-  await writeDb(db);
-  return true;
+  const { error } = await supabase.from('items').update({ currentLocation: newLocation }).eq('id', id);
+  return !error;
+}
+
+export async function updateItem(id: string, updatedData: Partial<Item>): Promise<boolean> {
+  const { error } = await supabase.from('items').update(updatedData).eq('id', id);
+  return !error;
+}
+
+export async function deleteItem(id: string): Promise<boolean> {
+  await supabase.from('bookings').delete().eq('targetId', id);
+  const { error } = await supabase.from('items').delete().eq('id', id);
+  return !error;
 }
 
 export async function getUsers(): Promise<User[]> {
-  const db = await readDb();
-  return db.users || [];
+  const { data } = await supabase.from('users').select('*');
+  return data || [];
 }
 
 export async function getUserById(id: string): Promise<User | undefined> {
-  const db = await readDb();
-  return db.users?.find(u => u.id === id);
+  const { data } = await supabase.from('users').select('*').eq('id', id).single();
+  return data || undefined;
 }
 
 export async function getUserByUsername(username: string): Promise<User | undefined> {
-  const db = await readDb();
-  return db.users?.find(u => u.username === username);
+  const { data } = await supabase.from('users').select('*').eq('username', username).maybeSingle();
+  return data || undefined;
 }
 
 export async function addUser(user: User): Promise<void> {
-  const db = await readDb();
-  if (!db.users) db.users = [];
-  db.users.push(user);
-  await writeDb(db);
+  const { error } = await supabase.from('users').insert([user]);
+  if (error) throw new Error(error.message);
 }
 
 export async function updateUserStatus(id: string, status: 'pending' | 'active'): Promise<boolean> {
-  const db = await readDb();
-  if (!db.users) return false;
-  
-  const index = db.users.findIndex(u => u.id === id);
-  if (index === -1) return false;
-  
-  db.users[index].status = status;
-  await writeDb(db);
-  return true;
+  const { error } = await supabase.from('users').update({ status }).eq('id', id);
+  return !error;
+}
+
+export async function updateUserProfile(id: string, updatedData: Partial<User>): Promise<boolean> {
+  const { error } = await supabase.from('users').update(updatedData).eq('id', id);
+  return !error;
 }

@@ -16,6 +16,8 @@ export default function LoginPage() {
   // States for registration
   const [admins, setAdmins] = useState<any[]>([]);
   const [selectedAdminId, setSelectedAdminId] = useState('');
+  const [registerRole, setRegisterRole] = useState<'employee' | 'admin'>('employee');
+  const [institutionName, setInstitutionName] = useState('');
 
   // Fetch admins list when tab switches to Register
   React.useEffect(() => {
@@ -42,12 +44,22 @@ export default function LoginPage() {
       const bodyPayload: any = { username, password };
       
       if (!isLogin) {
-        if (!selectedAdminId) {
-          setError('Silakan pilih instansi tujuan terlebih dahulu.');
-          setLoading(false);
-          return;
+        bodyPayload.role = registerRole;
+        if (registerRole === 'employee') {
+          if (!selectedAdminId) {
+            setError('Silakan pilih instansi tujuan terlebih dahulu.');
+            setLoading(false);
+            return;
+          }
+          bodyPayload.adminId = selectedAdminId;
+        } else {
+          if (!institutionName) {
+            setError('Silakan masukkan nama instansi.');
+            setLoading(false);
+            return;
+          }
+          bodyPayload.institutionName = institutionName;
         }
-        bodyPayload.adminId = selectedAdminId;
       }
 
       const res = await fetch(endpoint, {
@@ -94,8 +106,8 @@ export default function LoginPage() {
         </div>
 
         <div className="auth-tabs">
-          <button className={`auth-tab ${isLogin ? 'active' : ''}`} onClick={() => {setIsLogin(true); setError(''); setSuccess('');}}>Masuk</button>
-          <button className={`auth-tab ${!isLogin ? 'active' : ''}`} onClick={() => {setIsLogin(false); setError(''); setSuccess('');}}>Daftar Karyawan</button>
+          <button type="button" className={`auth-tab ${isLogin ? 'active' : ''}`} onClick={() => {setIsLogin(true); setError(''); setSuccess('');}}>Masuk</button>
+          <button type="button" className={`auth-tab ${!isLogin ? 'active' : ''}`} onClick={() => {setIsLogin(false); setError(''); setSuccess('');}}>Daftar</button>
         </div>
 
         {error && <div className="alert alert-danger">{error}</div>}
@@ -126,13 +138,38 @@ export default function LoginPage() {
           </div>
 
           {!isLogin && (
+            <div className="form-group animate-fade-in" style={{ display: 'flex', gap: '16px', margin: '8px 0' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="radio" 
+                  name="role" 
+                  value="employee" 
+                  checked={registerRole === 'employee'}
+                  onChange={() => setRegisterRole('employee')}
+                />
+                Daftar sebagai Staf / Anggota
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input 
+                  type="radio" 
+                  name="role" 
+                  value="admin" 
+                  checked={registerRole === 'admin'}
+                  onChange={() => setRegisterRole('admin')}
+                />
+                Daftar sebagai Instansi (Admin)
+              </label>
+            </div>
+          )}
+
+          {!isLogin && registerRole === 'employee' && (
             <div className="form-group animate-fade-in">
               <label className="form-label">Pilih Instansi Tujuan</label>
               <select 
                 className="form-input" 
                 value={selectedAdminId} 
                 onChange={(e) => setSelectedAdminId(e.target.value)}
-                required
+                required={!isLogin && registerRole === 'employee'}
               >
                 <option value="">-- Pilih Instansi --</option>
                 {admins.map(admin => (
@@ -141,6 +178,20 @@ export default function LoginPage() {
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {!isLogin && registerRole === 'admin' && (
+            <div className="form-group animate-fade-in">
+              <label className="form-label">Nama Instansi</label>
+              <input 
+                type="text" 
+                className="form-input" 
+                placeholder="Contoh: PT. Sukses Makmur" 
+                value={institutionName}
+                onChange={(e) => setInstitutionName(e.target.value)}
+                required={!isLogin && registerRole === 'admin'}
+              />
             </div>
           )}
 

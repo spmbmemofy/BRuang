@@ -207,10 +207,12 @@ export default function Dashboard() {
     );
   };
 
-  const filteredRooms = rooms.filter(room => 
-    room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    room.facilities.some(f => f.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredRooms = rooms.filter(room => {
+    const matchesSearch = 
+      room.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      (room.computedFacilities || room.facilities).some(f => f.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesSearch;
+  });
 
   const filteredItems = items.filter(item => 
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
