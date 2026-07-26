@@ -9,9 +9,12 @@ interface ItemCardProps {
   isOccupied: boolean;
   occupiedUntil?: string;
   onViewLocation: (item: Item) => void;
+  isGroup?: boolean;
+  groupCount?: number;
+  onExpandGroup?: () => void;
 }
 
-export default function ItemCard({ item, isOccupied, occupiedUntil, onViewLocation }: ItemCardProps) {
+export default function ItemCard({ item, isOccupied, occupiedUntil, onViewLocation, isGroup, groupCount, onExpandGroup }: ItemCardProps) {
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -40,7 +43,14 @@ export default function ItemCard({ item, isOccupied, occupiedUntil, onViewLocati
         </div>
 
         <div className="item-header-text">
-          <h3 className="item-name">{item.name}</h3>
+          <h3 className="item-name">
+            {item.name}
+            {isGroup && groupCount && (
+              <span style={{ marginLeft: '8px', fontSize: '0.8rem', padding: '4px 8px', backgroundColor: 'rgba(0,255,100,0.2)', color: '#4ade80', borderRadius: '12px' }}>
+                {groupCount} Unit
+              </span>
+            )}
+          </h3>
         </div>
 
         <p className="item-description">{item.description}</p>
@@ -59,18 +69,31 @@ export default function ItemCard({ item, isOccupied, occupiedUntil, onViewLocati
 
         {/* Action Buttons */}
         <div className="item-actions">
-          <button 
-            type="button" 
-            className="btn-neon-outline qr-btn"
-            onClick={() => onViewLocation(item)}
-            title="Tampilkan Detail / QR Lokasi"
-          >
-            📷 Detail
-          </button>
-          
-          <Link href={`/items/${item.id}`} className="btn-neon book-btn">
-            📅 Jadwal & Pinjam
-          </Link>
+          {isGroup ? (
+            <button 
+              type="button" 
+              className="btn-neon book-btn"
+              style={{ width: '100%' }}
+              onClick={onExpandGroup}
+            >
+              📋 Lihat {groupCount} Unit
+            </button>
+          ) : (
+            <>
+              <button 
+                type="button" 
+                className="btn-neon-outline qr-btn"
+                onClick={() => onViewLocation(item)}
+                title="Tampilkan Detail / QR Lokasi"
+              >
+                📷 Detail
+              </button>
+              
+              <Link href={`/items/${item.id}`} className="btn-neon book-btn">
+                📅 Jadwal & Pinjam
+              </Link>
+            </>
+          )}
         </div>
       </div>
 

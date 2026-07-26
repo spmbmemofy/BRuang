@@ -33,6 +33,8 @@ export default function Dashboard() {
   
   // Add Item Modal State
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [selectedGroupItems, setSelectedGroupItems] = useState<any[]>([]);
   const [itemName, setItemName] = useState('');
   const [itemCategory, setItemCategory] = useState('');
   const [itemLocation, setItemLocation] = useState('');
@@ -55,7 +57,20 @@ export default function Dashboard() {
     url: '',
   });
 
+  const [isViewLocationOpen, setIsViewLocationOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+
   const todayStr = new Date().toLocaleDateString('en-CA'); 
+
+  const handleViewLocation = (item: any) => {
+    setSelectedItem(item);
+    setIsViewLocationOpen(true);
+  };
+
+  const handleExpandGroup = (items: any[]) => {
+    setSelectedGroupItems(items);
+    setIsGroupModalOpen(true);
+  };
 
   const fetchData = async () => {
     try {
@@ -219,6 +234,18 @@ export default function Dashboard() {
     item.currentLocation.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const groupedFilteredItems = Array.from(filteredItems.reduce((acc, item) => {
+    const baseName = item.name.replace(/\s*-\s*\d+$/, '');
+    const key = `${baseName}-${item.currentLocation}`;
+    if (!acc.has(key)) {
+      acc.set(key, { ...item, name: baseName, originalItems: [item] });
+    } else {
+      const group = acc.get(key);
+      group.originalItems.push(item);
+    }
+    return acc;
+  }, new Map()).values());
+
   const handleOpenQR = (target: Room | Item) => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
     // Use target.category as a proxy to check if it's an Item since Item has category, Room has facilities
@@ -355,18 +382,32 @@ export default function Dashboard() {
                   />
                 );
               })}
-              
-              {activeTab === 'items' && filteredItems.map(item => {
-                const currentBooking = getCurrentBookingForTarget(item.id);
-                return (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    isOccupied={!!currentBooking}
-                    occupiedUntil={currentBooking?.endTime}
-                    onViewLocation={() => handleOpenQR(item)}
-                  />
-                );
+              {activeTab === 'items' && groupedFilteredItems.map(itemGroup => {
+                if (itemGroup.originalItems.length > 1) {
+                  return (
+                    <ItemCard
+                      key={itemGroup.id}
+                      item={itemGroup}
+                      isOccupied={false} // Group level doesn't show occupied simply
+                      onViewLocation={() => handleViewLocation(itemGroup)}
+                      isGroup={true}
+                      groupCount={itemGroup.originalItems.length}
+                      onExpandGroup={() => handleExpandGroup(itemGroup.originalItems)}
+                    />
+                  );
+                } else {
+                  const item = itemGroup.originalItems[0];
+                  const currentBooking = getCurrentBookingForTarget(item.id);
+                  return (
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      isOccupied={!!currentBooking}
+                      occupiedUntil={currentBooking?.endTime}
+                      onViewLocation={() => handleViewLocation(item)}
+                    />
+                  );
+                }
               })}
 
               {activeTab === 'users' && users.map(user => (
@@ -404,6 +445,61 @@ export default function Dashboard() {
           )}
         </section>
       </main>
+
+      {/* Item Details/QR Modal */}
+      {isViewLocationOpen && selectedItem && (
+        <div className="modal-backdrop" onClick={() => setIsViewLocationOpen(false)}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Detail Barang: {selectedItem.name}</h3>
+              <button className="close-btn" onClick={() => setIsViewLocationOpen(false)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <p>Barang ini terdaftar berlokasi di: <strong>{selectedItem.currentLocation}</strong></p>
+              <div style={{ padding: '24px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', marginTop: '16px', textAlign: 'center' }}>
+                <p style={{ color: '#aaa', fontSize: '0.9rem' }}>Scan QR (Simulasi)</p>
+                <div style={{ width: '120px', height: '120px', margin: '16px auto', background: '#fff', padding: '8px' }}>
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(window.location.origin + '/items/' + selectedItem.id)}`} alt="QR Code" style={{ width: '100%' }} />
+                </div>
+              </div>
+              <div className="modal-footer-btn" style={{ marginTop: '24px' }}>
+                <button className="btn-neon-outline cancel-btn" onClick={() => setIsViewLocationOpen(false)}>Tutup</button>
+                {(!selectedItem.originalItems || selectedItem.originalItems.length === 1) && (
+                  <Link href={`/items/${selectedItem.id}`} className="btn-neon">Edit / Hapus</Link>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Group Expansion Modal */}
+      {isGroupModalOpen && (
+        <div className="modal-backdrop" onClick={() => setIsGroupModalOpen(false)}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%' }}>
+            <div className="modal-header">
+              <h3>📋 Daftar Unit {selectedGroupItems.length > 0 ? selectedGroupItems[0].name.replace(/\s*-\s*\d+$/, '') : ''}</h3>
+              <button className="close-btn" onClick={() => setIsGroupModalOpen(false)}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              <div className="grid-container" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                {selectedGroupItems.map(item => {
+                  const currentBooking = getCurrentBookingForTarget(item.id);
+                  return (
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      isOccupied={!!currentBooking}
+                      occupiedUntil={currentBooking?.endTime}
+                      onViewLocation={() => {setIsGroupModalOpen(false); handleViewLocation(item);}}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Room Modal */}
       {isAddRoomOpen && (

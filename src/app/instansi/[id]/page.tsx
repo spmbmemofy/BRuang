@@ -21,6 +21,8 @@ export default function PublicInstitutionPage({ params }: PageProps) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [items, setItems] = useState<Item[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [selectedGroupItems, setSelectedGroupItems] = useState<any[]>([]);
   
   const [institutionName, setInstitutionName] = useState('Memuat Instansi...');
   const [loading, setLoading] = useState(true);
@@ -84,7 +86,27 @@ export default function PublicInstitutionPage({ params }: PageProps) {
   }, [adminId, todayStr]);
 
   const filteredRooms = rooms.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const filteredItems = items.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredItems = items.filter(item => 
+    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const groupedFilteredItems = Array.from(filteredItems.reduce((acc, item) => {
+    const baseName = item.name.replace(/\s*-\s*\d+$/, '');
+    const key = `${baseName}-${item.currentLocation}`;
+    if (!acc.has(key)) {
+      acc.set(key, { ...item, name: baseName, originalItems: [item] });
+    } else {
+      const group = acc.get(key);
+      group.originalItems.push(item);
+    }
+    return acc;
+  }, new Map()).values());
+
+  const handleExpandGroup = (itemsToExpand: any[]) => {
+    setSelectedGroupItems(itemsToExpand);
+    setIsGroupModalOpen(true);
+  };
 
   const getCurrentBookingForTarget = (targetId: string) => {
     const now = new Date();
@@ -170,17 +192,32 @@ export default function PublicInstitutionPage({ params }: PageProps) {
                 );
               })}
               
-              {activeTab === 'items' && filteredItems.map(item => {
-                const currentBooking = getCurrentBookingForTarget(item.id);
-                return (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    isOccupied={!!currentBooking}
-                    occupiedUntil={currentBooking?.endTime}
-                    onViewLocation={() => {}}
-                  />
-                );
+              {activeTab === 'items' && groupedFilteredItems.map(itemGroup => {
+                if (itemGroup.originalItems.length > 1) {
+                  return (
+                    <ItemCard
+                      key={itemGroup.id}
+                      item={itemGroup}
+                      isOccupied={false}
+                      onViewLocation={() => {}}
+                      isGroup={true}
+                      groupCount={itemGroup.originalItems.length}
+                      onExpandGroup={() => handleExpandGroup(itemGroup.originalItems)}
+                    />
+                  );
+                } else {
+                  const item = itemGroup.originalItems[0];
+                  const currentBooking = getCurrentBookingForTarget(item.id);
+                  return (
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      isOccupied={!!currentBooking}
+                      occupiedUntil={currentBooking?.endTime}
+                      onViewLocation={() => {}}
+                    />
+                  );
+                }
               })}
 
               {activeTab === 'rooms' && filteredRooms.length === 0 && (
@@ -197,6 +234,34 @@ export default function PublicInstitutionPage({ params }: PageProps) {
           )}
         </section>
       </main>
+
+      {/* Group Expansion Modal */}
+      {isGroupModalOpen && (
+        <div className="modal-backdrop" onClick={() => setIsGroupModalOpen(false)}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%', zIndex: 100 }}>
+            <div className="modal-header">
+              <h3>📋 Daftar Unit {selectedGroupItems.length > 0 ? selectedGroupItems[0].name.replace(/\s*-\s*\d+$/, '') : ''}</h3>
+              <button className="close-btn" onClick={() => setIsGroupModalOpen(false)}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+              <div className="cards-grid">
+                {selectedGroupItems.map(item => {
+                  const currentBooking = getCurrentBookingForTarget(item.id);
+                  return (
+                    <ItemCard
+                      key={item.id}
+                      item={item}
+                      isOccupied={!!currentBooking}
+                      occupiedUntil={currentBooking?.endTime}
+                      onViewLocation={() => {}}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style jsx>{`
         .dashboard-container { min-height: 100vh; display: flex; flex-direction: column; padding: 16px; max-width: 1200px; margin: 0 auto; gap: 20px; }
