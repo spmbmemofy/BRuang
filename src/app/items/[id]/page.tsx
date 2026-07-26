@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, use } from 'react';
 import LinkItem from 'next/link';
-import BookingCalendar from '@/components/BookingCalendar';
+import MonthlyCalendar from '@/components/MonthlyCalendar';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Item, Booking } from '@/lib/db';
 
@@ -11,18 +11,31 @@ interface PageProps {
 }
 
 export default function ItemDetailPage({ params }: PageProps) {
-  // Unwrap params
   const resolvedParams = params instanceof Promise ? use(params) : params;
   const itemId = resolvedParams.id;
 
   const [item, setItem] = useState<Item | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [allBookings, setAllBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Booking Form State
+  // Tabs for Item specifics
+  const [activeTab, setActiveTab] = useState<'booking' | 'location'>('booking');
+  const [newLocation, setNewLocation] = useState('');
+  const [updateLocLoading, setUpdateLocLoading] = useState(false);
+  const [updateLocMsg, setUpdateLocMsg] = useState('');
+  const [rooms, setRooms] = useState<any[]>([]);
+
+  // Calendar State
   const todayStr = new Date().toLocaleDateString('en-CA');
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const bookedDates = Array.from(new Set(allBookings.map(b => b.date)));
+
+  // Filter bookings for the selected date
+  const bookingsForSelectedDate = allBookings.filter(b => b.date === selectedDate).sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  // Modal Booking State
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [userName, setUserName] = useState('');
   const [contactInfo, setContactInfo] = useState('');
   const [startTime, setStartTime] = useState('09:00');
@@ -36,13 +49,8 @@ export default function ItemDetailPage({ params }: PageProps) {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitConflicts, setSubmitConflicts] = useState<Booking[]>([]);
 
-  const timeOptions: string[] = [];
-  for (let hour = 8; hour <= 20; hour++) {
-    const hh = hour.toString().padStart(2, '0');
-    timeOptions.push(`${hh}:00`);
-    if (hour < 20) timeOptions.push(`${hh}:30`);
-  }
 
   const getMaxRecurrenceDate = () => {
     try {
@@ -58,22 +66,41 @@ export default function ItemDetailPage({ params }: PageProps) {
     try {
       setLoading(true);
       
-      const itemsRes = await fetch('/api/items');
-      if (!itemsRes.ok) throw new Error('Gagal mengambil data barang.');
-      const itemsData: Item[] = await itemsRes.json();
-      const currentItem = itemsData.find(i => i.id === itemId);
+      const itemRes = await fetch(`/api/public/item-details?itemId=${itemId}`);
+      if (!itemRes.ok) throw new Error('Gagal mengambil data barang atau barang bersifat privat.');
+      const currentItem: Item = await itemRes.json();
       
-      if (!currentItem) {
-        throw new Error('Barang tidak ditemukan.');
-      }
       setItem(currentItem);
+      if (!newLocation) setNewLocation(currentItem.currentLocation);
 
-      const bookingsRes = await fetch(`/api/bookings?targetId=${itemId}&date=${selectedDate}`);
+      // Fetch all bookings for this item
+      const [bookingsRes, meRes] = await Promise.all([
+        fetch(`/api/bookings?targetId=${itemId}`),
+        fetch('/api/auth/me')
+      ]);
+
       if (!bookingsRes.ok) throw new Error('Gagal mengambil jadwal pemakaian.');
       const bookingsData = await bookingsRes.json();
-      setBookings(bookingsData);
+      setAllBookings(bookingsData);
       
-      setError(null);
+        if (meRes.ok) {
+          const meData = await meRes.json();
+          if (meData.user) {
+            setUserName(meData.user.username);
+            setContactInfo(meData.user.contactInfo || '');
+          }
+        }
+
+        // Fetch rooms for location dropdown
+        if (currentItem.adminId) {
+          const roomsRes = await fetch(`/api/public/rooms?adminId=${currentItem.adminId}`);
+          if (roomsRes.ok) {
+            const roomsData = await roomsRes.json();
+            setRooms(roomsData);
+          }
+        }
+
+        setError(null);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Terjadi kesalahan sistem.');
@@ -85,7 +112,7 @@ export default function ItemDetailPage({ params }: PageProps) {
   useEffect(() => {
     fetchItemAndBookings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemId, selectedDate]);
+  }, [itemId]);
 
   useEffect(() => {
     if (isRecurring && !recurrenceEndDate) {
@@ -96,23 +123,12 @@ export default function ItemDetailPage({ params }: PageProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecurring]);
 
-  const handleSelectTimeSlot = (start: string, end: string) => {
-    setStartTime(start);
-    setEndTime(end);
-
-    const formElement = document.getElementById('booking-form-element');
-    if (formElement) {
-      formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      formElement.classList.add('form-highlight-flash');
-      setTimeout(() => formElement.classList.remove('form-highlight-flash'), 1000);
-    }
-  };
-
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitLoading(true);
     setSubmitSuccess(null);
     setSubmitError(null);
+    setSubmitConflicts([]);
 
     if (!userName.trim() || !contactInfo.trim() || !purpose.trim()) {
       setSubmitError('Nama pemesan, kontak, dan keperluan wajib diisi.');
@@ -154,6 +170,10 @@ export default function ItemDetailPage({ params }: PageProps) {
 
       if (!response.ok) {
         setSubmitError(data.error || 'Gagal membuat booking.');
+        if (data.conflictDetails) {
+          const uniqueConflicts = data.conflictDetails.filter((v: Booking, i: number, a: Booking[]) => a.findIndex(t => (t.id === v.id)) === i);
+          setSubmitConflicts(uniqueConflicts);
+        }
         setSubmitLoading(false);
         return;
       }
@@ -165,7 +185,11 @@ export default function ItemDetailPage({ params }: PageProps) {
       setContactInfo('');
       
       await fetchItemAndBookings();
-      setTimeout(() => setSubmitSuccess(null), 5000);
+      
+      setTimeout(() => {
+        setSubmitSuccess(null);
+        setIsBookingModalOpen(false);
+      }, 2000);
     } catch (err: any) {
       setSubmitError('Terjadi kesalahan koneksi. Silakan coba lagi.');
     } finally {
@@ -173,16 +197,49 @@ export default function ItemDetailPage({ params }: PageProps) {
     }
   };
 
+  const handleUpdateLocation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpdateLocLoading(true);
+    setUpdateLocMsg('');
+
+    try {
+      const res = await fetch(`/api/items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentLocation: newLocation })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal update lokasi');
+      
+      setUpdateLocMsg('✅ Lokasi berhasil diperbarui!');
+      await fetchItemAndBookings();
+    } catch (err: any) {
+      setUpdateLocMsg(`❌ ${err.message}`);
+    } finally {
+      setUpdateLocLoading(false);
+    }
+  };
+
   const getGradient = (id: string) => {
     const charSum = id.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-    const hue1 = charSum % 360;
-    const hue2 = (hue1 + 60) % 360;
-    return `linear-gradient(135deg, hsl(${hue1}, 75%, 60%) 0%, hsl(${hue2}, 75%, 50%) 100%)`;
+    const hue1 = (charSum * 13) % 360;
+    const hue2 = (hue1 + 45) % 360;
+    return `linear-gradient(135deg, hsl(${hue1}, 70%, 55%) 0%, hsl(${hue2}, 70%, 45%) 100%)`;
+  };
+
+  const formatIndonesianDate = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
   };
 
   if (loading && !item) {
     return (
-      <div className="room-detail-container loading-container">
+      <div className="item-detail-container loading-container">
         <ThemeToggle />
         <div className="spinner"></div>
         <p>Sedang memuat data barang...</p>
@@ -192,33 +249,30 @@ export default function ItemDetailPage({ params }: PageProps) {
 
   if (error || !item) {
     return (
-      <div className="room-detail-container">
+      <div className="item-detail-container">
         <div className="error-card glass-panel">
           <span className="error-icon">⚠️</span>
           <h2>Gagal Memuat Barang</h2>
           <p>{error || 'Barang yang Anda cari tidak terdaftar.'}</p>
-          <LinkItem href="/" className="btn-neon mt-4">
-             kembali ke Dashboard
-          </LinkItem>
+          <LinkItem href="/" className="btn-neon mt-4">kembali ke Dashboard</LinkItem>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="room-detail-container">
+    <div className="item-detail-container">
       <div className="detail-header-nav">
-        <LinkItem href="/" className="back-link">
-          ⬅️ Kembali ke Dashboard
-        </LinkItem>
+        <LinkItem href="/" className="back-link">⬅️ Kembali ke Dashboard</LinkItem>
         <ThemeToggle />
       </div>
 
-      <div className="detail-grid">
-        <div className="left-column">
-          <section className="glass-panel room-profile-card">
-            <div className="room-visual-banner" style={{ background: getGradient(item.id) }}>
-              <span className="banner-logo">BRuang Barang</span>
+      <div className="layout-grid">
+        {/* Left Column: Item Profile & Location Update */}
+        <div className="layout-col-left">
+          <section className="glass-panel item-profile-card hero-section">
+            <div className="item-visual-banner" style={{ background: getGradient(item.id) }}>
+              <span className="banner-logo">📦</span>
             </div>
             
             <div className="profile-content">
@@ -227,59 +281,163 @@ export default function ItemDetailPage({ params }: PageProps) {
               
               <div className="profile-specs-grid">
                 <div className="spec-box">
-                  <span className="spec-label">📁 Kategori:</span>
+                  <span className="spec-label">📑 Kategori:</span>
                   <span className="spec-val">{item.category}</span>
                 </div>
                 <div className="spec-box">
-                  <span className="spec-label">📍 Lokasi Penyimpanan:</span>
-                  <span className="spec-val">{item.currentLocation}</span>
+                  <span className="spec-label">🔢 Jumlah:</span>
+                  <span className="spec-val">1 Unit (ID Tunggal)</span>
                 </div>
               </div>
+
+              {/* Tabs for Item actions */}
+              <div className="tabs-container">
+                <button 
+                  className={`tab-btn ${activeTab === 'booking' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('booking')}
+                >
+                  📅 Pinjam Barang
+                </button>
+                <button 
+                  className={`tab-btn ${activeTab === 'location' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('location')}
+                >
+                  📍 Pindah Lokasi
+                </button>
+              </div>
+
+              {activeTab === 'location' && (
+                <div className="location-update-panel animate-slide-up mt-4">
+                  <h5>Update Lokasi Barang Saat Ini</h5>
+                  <p className="loc-helper">Lokasi tercatat: <strong>{item.currentLocation}</strong></p>
+                  
+                  <form onSubmit={handleUpdateLocation} className="loc-form">
+                    <select
+                      className="form-input select-input"
+                      value={newLocation}
+                      onChange={(e) => setNewLocation(e.target.value)}
+                      required
+                    >
+                      <option value="">-- Pilih Ruangan --</option>
+                      {rooms.map((room) => (
+                        <option key={room.id} value={room.name}>{room.name}</option>
+                      ))}
+                    </select>
+                    <button type="submit" disabled={updateLocLoading} className="btn-neon mt-2">
+                      {updateLocLoading ? 'Menyimpan...' : 'Update Lokasi'}
+                    </button>
+                  </form>
+                  {updateLocMsg && <p className={`loc-msg ${updateLocMsg.startsWith('✅') ? 'success' : 'error'}`}>{updateLocMsg}</p>}
+                </div>
+              )}
             </div>
           </section>
+        </div>
 
-          <section id="booking-form-element" className="glass-panel booking-form-card">
-            <h3>📅 Formulir Peminjaman Barang</h3>
-            <p className="form-sub">Masukkan jadwal peminjaman Anda.</p>
+        {/* Right Column: Calendar & Booking List */}
+        <div className="layout-col-right" style={{ display: activeTab === 'booking' ? 'flex' : 'none', flexDirection: 'column', gap: '24px' }}>
+          <MonthlyCalendar 
+            selectedDate={selectedDate} 
+            onSelectDate={setSelectedDate} 
+            bookedDates={bookedDates} 
+          />
+
+          <div className="glass-panel booking-list-panel">
+            <div className="list-header">
+              <div>
+                <h3>📅 Jadwal Peminjaman</h3>
+                <p className="selected-date-text">{formatIndonesianDate(selectedDate)}</p>
+              </div>
+              <button className="btn-neon" onClick={() => setIsBookingModalOpen(true)}>
+                ➕ Pinjam Barang
+              </button>
+            </div>
+
+            {bookingsForSelectedDate.length === 0 ? (
+              <div className="empty-state">
+                <span className="empty-icon">🟢</span>
+                <p>Barang tidak sedang dipinjam dan tersedia sepanjang hari.</p>
+              </div>
+            ) : (
+              <div className="timeline-list">
+                {bookingsForSelectedDate.map(booking => (
+                  <div key={booking.id} className="timeline-item">
+                    <div className="time-badge">
+                      {booking.startTime} - {booking.endTime}
+                    </div>
+                    <div className="booking-details">
+                      <strong>{booking.user}</strong>
+                      <p>{booking.purpose}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Booking Modal */}
+      {isBookingModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-content glass-panel animate-slide-up">
+            <div className="modal-header">
+              <h3>📝 Form Pinjam: {item.name}</h3>
+              <button className="close-btn" onClick={() => setIsBookingModalOpen(false)}>&times;</button>
+            </div>
             
-            {submitSuccess && (
-              <div className="alert alert-success">✅ <strong>Berhasil!</strong> {submitSuccess}</div>
-            )}
-            {submitError && (
-              <div className="alert alert-danger">❌ {submitError}</div>
-            )}
+            <form onSubmit={handleBookingSubmit} className="modal-body-form">
+              <div className="booking-date-display mb-4">
+                Tanggal: <strong>{formatIndonesianDate(selectedDate)}</strong>
+              </div>
 
-            <form onSubmit={handleBookingSubmit} className="booking-form">
+              {submitSuccess && (
+                <div className="alert alert-success">✅ <strong>Berhasil!</strong> {submitSuccess}</div>
+              )}
+              {submitError && (
+                <div className="alert alert-danger">
+                  ❌ {submitError}
+                  {submitConflicts.length > 0 && (
+                    <div className="conflict-list mt-3">
+                      <strong>Detail Jadwal yang Bentrok:</strong>
+                      {submitConflicts.map(conflict => (
+                        <div key={conflict.id} className="conflict-item">
+                          <p>👤 <strong>{conflict.user}</strong> (Kegiatan: {conflict.purpose})</p>
+                          <p>🕒 {conflict.date} | {conflict.startTime} - {conflict.endTime}</p>
+                          <a 
+                            href={`https://wa.me/${conflict.contactInfo.replace(/[^0-9]/g, '')}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="btn-wa mt-2"
+                          >
+                            💬 Hubungi via WA
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="form-row">
                 <div className="form-group flex-1">
                   <label className="form-label" htmlFor="user-name">Nama Peminjam</label>
-                  <input id="user-name" type="text" placeholder="Masukkan nama lengkap..." className="form-input" value={userName} onChange={(e) => setUserName(e.target.value)} required />
+                  <input id="user-name" type="text" className="form-input" value={userName} onChange={(e) => setUserName(e.target.value)} required readOnly />
                 </div>
                 <div className="form-group flex-1">
-                  <label className="form-label" htmlFor="contact-info">No. WhatsApp / Ekstensi</label>
-                  <input id="contact-info" type="text" placeholder="08123xxx untuk koordinasi..." className="form-input" value={contactInfo} onChange={(e) => setContactInfo(e.target.value)} required />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group flex-1">
-                  <label className="form-label" htmlFor="booking-date">Tanggal</label>
-                  <input id="booking-date" type="date" className="form-input" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} min={todayStr} required />
+                  <label className="form-label" htmlFor="contact-info">No. WhatsApp</label>
+                  <input id="contact-info" type="text" placeholder="08123..." className="form-input" value={contactInfo} onChange={(e) => setContactInfo(e.target.value)} required />
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group flex-1">
                   <label className="form-label" htmlFor="start-time">Jam Mulai</label>
-                  <select id="start-time" className="form-input select-input" value={startTime} onChange={(e) => setStartTime(e.target.value)}>
-                    {timeOptions.slice(0, -1).map(time => <option key={time} value={time}>{time}</option>)}
-                  </select>
+                  <input id="start-time" type="time" className="form-input" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
                 </div>
                 <div className="form-group flex-1">
                   <label className="form-label" htmlFor="end-time">Jam Selesai</label>
-                  <select id="end-time" className="form-input select-input" value={endTime} onChange={(e) => setEndTime(e.target.value)}>
-                    {timeOptions.slice(1).map(time => <option key={time} value={time}>{time}</option>)}
-                  </select>
+                  <input id="end-time" type="time" className="form-input" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
                 </div>
               </div>
 
@@ -294,7 +452,7 @@ export default function ItemDetailPage({ params }: PageProps) {
                   <div className="recurrence-panel glass-panel animate-slide-down">
                     <div className="form-row">
                       <div className="form-group flex-1">
-                        <label className="form-label">Pola Pengulangan</label>
+                        <label className="form-label">Pola</label>
                         <select className="form-input select-input" value={recurrence} onChange={(e) => setRecurrence(e.target.value)}>
                           <option value="daily">Setiap Hari</option>
                           <option value="weekly">Setiap Minggu</option>
@@ -302,9 +460,8 @@ export default function ItemDetailPage({ params }: PageProps) {
                         </select>
                       </div>
                       <div className="form-group flex-1">
-                        <label className="form-label">Ulangi Hingga</label>
+                        <label className="form-label">Batas Akhir Pengulangan (Tanggal)</label>
                         <input type="date" className="form-input" value={recurrenceEndDate} onChange={(e) => setRecurrenceEndDate(e.target.value)} min={selectedDate} max={getMaxRecurrenceDate()} required />
-                        <span className="helper-text-date">Maksimal 3 bulan</span>
                       </div>
                     </div>
                   </div>
@@ -312,302 +469,118 @@ export default function ItemDetailPage({ params }: PageProps) {
               </div>
 
               <div className="form-group">
-                <label className="form-label" htmlFor="purpose">Tujuan Peminjaman</label>
-                <input id="purpose" type="text" placeholder="Contoh: Digunakan untuk Rapat Eksternal..." className="form-input" value={purpose} onChange={(e) => setPurpose(e.target.value)} required />
+                <label className="form-label">Keperluan / Tujuan Peminjaman</label>
+                <input type="text" placeholder="Contoh: Dibawa ke Ruang Rapat B..." className="form-input" value={purpose} onChange={(e) => setPurpose(e.target.value)} required />
               </div>
 
-              <button type="submit" disabled={submitLoading} className="btn-neon submit-booking-btn">
-                {submitLoading ? 'Sedang Memproses...' : '🚀 Pinjam Barang Sekarang'}
-              </button>
+              <div className="modal-footer-btn">
+                <button type="button" className="btn-neon-outline cancel-btn" onClick={() => setIsBookingModalOpen(false)}>Batal</button>
+                <button type="submit" disabled={submitLoading} className="btn-neon submit-btn bg-emerald-600 border-emerald-500 hover:bg-emerald-700">
+                  {submitLoading ? 'Memproses...' : '🚀 Pinjam Barang Sekarang'}
+                </button>
+              </div>
             </form>
-          </section>
-        </div>
-
-        <div className="right-column">
-          <div className="glass-panel date-selector-panel">
-            <label htmlFor="calendar-date">Tampilkan Jadwal Tanggal:</label>
-            <input id="calendar-date" type="date" className="form-input" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
           </div>
-
-          <BookingCalendar 
-            bookings={bookings} 
-            selectedDate={selectedDate} 
-            selectedStartTime={startTime}
-            selectedEndTime={endTime}
-            onSelectTimeSlot={handleSelectTimeSlot}
-          />
         </div>
-      </div>
+      )}
 
       <style jsx>{`
-        .room-detail-container {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 24px 16px 80px 16px;
-          min-height: 100vh;
-        }
+        .item-detail-container { max-width: 1200px; margin: 0 auto; padding: 24px 16px 80px 16px; min-height: 100vh; }
 
-        .loading-container {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-        }
+        .loading-container { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .spinner { width: 45px; height: 45px; border: 3px solid rgba(99, 102, 241, 0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s infinite linear; margin-bottom: 16px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
-        .spinner {
-          width: 45px;
-          height: 45px;
-          border: 3px solid rgba(99, 102, 241, 0.1);
-          border-top-color: var(--primary);
-          border-radius: 50%;
-          animation: spin 1s infinite linear;
-          margin-bottom: 16px;
-        }
+        .error-card { text-align: center; padding: 48px; max-width: 500px; margin: 100px auto 0 auto; border-color: rgba(239, 68, 68, 0.2); }
+        .error-icon { font-size: 3rem; margin-bottom: 16px; display: block; }
 
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
+        .mt-2 { margin-top: 0.5rem; }
+        .mt-4 { margin-top: 1rem; }
+        .mb-4 { margin-bottom: 1rem; }
+        
+        .detail-header-nav { margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; }
+        .back-link { font-family: var(--font-outfit); color: var(--text-light); font-size: 0.95rem; font-weight: 600; transition: color 0.2s; display: inline-flex; align-items: center; }
+        .back-link:hover { color: var(--foreground); text-decoration: underline; }
 
-        .error-card {
-          text-align: center;
-          padding: 48px;
-          max-width: 500px;
-          margin: 100px auto 0 auto;
-          border-color: rgba(239, 68, 68, 0.2);
-        }
+        .layout-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        @media (max-width: 900px) { .layout-grid { grid-template-columns: 1fr; } }
 
-        .error-icon {
-          font-size: 3rem;
-          margin-bottom: 16px;
-          display: block;
-        }
+        .item-profile-card { overflow: hidden; height: 100%; }
+        .item-visual-banner { height: 120px; display: flex; align-items: center; justify-content: center; padding: 0 24px; }
+        .banner-logo { font-size: 4rem; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3)); }
+        
+        .profile-content { padding: 24px; }
+        .profile-name { font-size: 1.8rem; color: var(--foreground); margin-bottom: 12px; line-height: 1.2; }
+        .profile-desc { font-size: 0.9rem; color: var(--text-light); line-height: 1.6; margin-bottom: 20px; }
+        
+        .profile-specs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 20px; background: var(--bg-slate); padding: 14px; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.1); }
+        .spec-box { display: flex; flex-direction: column; gap: 4px; }
+        .spec-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+        .spec-val { font-size: 0.9rem; font-weight: 700; color: var(--foreground); }
 
-        .mt-4 { margin-top: 1.5rem; }
+        .tabs-container { display: flex; gap: 4px; background: var(--bg-slate); padding: 4px; border-radius: 12px; border: 1px solid rgba(148, 163, 184, 0.1); margin-top: 24px; }
+        .tab-btn { flex: 1; padding: 10px; font-size: 0.9rem; font-weight: 600; color: var(--text-muted); background: transparent; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .tab-btn:hover { color: var(--foreground); }
+        .tab-btn.active { background: var(--bg-card); color: var(--foreground); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
 
-        .detail-header-nav {
-          margin-bottom: 24px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
+        .location-update-panel { padding: 16px; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid rgba(148,163,184,0.1); }
+        .location-update-panel h5 { margin-bottom: 4px; color: var(--foreground); }
+        .loc-helper { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; }
+        .loc-form { display: flex; flex-direction: column; gap: 8px; }
+        .loc-msg { font-size: 0.85rem; margin-top: 8px; font-weight: 500; }
+        .loc-msg.success { color: var(--success); }
+        .loc-msg.error { color: var(--error); }
 
-        .back-link {
-          font-family: var(--font-outfit);
-          color: var(--text-light);
-          font-size: 0.95rem;
-          font-weight: 600;
-          transition: color 0.2s;
-          display: inline-flex;
-          align-items: center;
-        }
+        .booking-list-panel { padding: 20px; }
+        .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid rgba(148, 163, 184, 0.1); padding-bottom: 16px;}
+        .list-header h3 { font-size: 1.2rem; color: var(--foreground); }
+        .selected-date-text { font-size: 0.9rem; color: var(--primary); font-weight: 600; }
 
-        .back-link:hover {
-          color: var(--foreground);
-          text-decoration: underline;
-        }
+        .empty-state { text-align: center; padding: 32px 0; color: var(--text-muted); font-size: 0.9rem; }
+        .empty-icon { font-size: 2rem; margin-bottom: 8px; display: block; }
 
-        .detail-grid {
-          display: grid;
-          grid-template-columns: 1.1fr 0.9fr;
-          gap: 24px;
-        }
+        .timeline-list { display: flex; flex-direction: column; gap: 12px; }
+        .timeline-item { display: flex; align-items: center; gap: 16px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border-left: 3px solid var(--primary); }
+        .time-badge { font-weight: 700; color: var(--primary); font-family: var(--font-outfit); font-size: 0.9rem; min-width: 100px; }
+        .booking-details strong { color: var(--foreground); font-size: 0.95rem; display: block; }
+        .booking-details p { color: var(--text-muted); font-size: 0.85rem; margin-top: 2px; }
 
-        @media (max-width: 900px) {
-          .detail-grid {
-            grid-template-columns: 1fr;
-          }
-        }
+        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(8, 7, 17, 0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+        .modal-content { width: 100%; max-width: 550px; max-height: 90vh; overflow-y: auto; padding: 24px; background: var(--modal-bg); border: 1px solid var(--border-glow-hover); box-shadow: 0 20px 50px var(--shadow-hover-color); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(148, 163, 184, 0.1); padding-bottom: 12px; margin-bottom: 16px; }
+        .modal-header h3 { font-size: 1.25rem; color: var(--foreground); }
+        .close-btn { background: none; border: none; color: var(--text-muted); font-size: 1.75rem; cursor: pointer; transition: color 0.2s; }
+        .close-btn:hover { color: var(--error); }
+        .modal-body-form { display: flex; flex-direction: column; }
+        
+        .booking-date-display { background: rgba(16,185,129,0.1); color: var(--success); padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; border: 1px solid rgba(16,185,129,0.3); }
 
-        .left-column, .right-column {
-          display: flex;
-          flex-direction: column;
-          gap: 24px;
-        }
+        .form-row { display: flex; gap: 16px; }
+        .flex-1 { flex: 1; }
+        @media (max-width: 480px) { .form-row { flex-direction: column; gap: 0; } }
 
-        .room-profile-card {
-          overflow: hidden;
-        }
+        .select-input { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; background-size: 16px; padding-right: 40px; }
 
-        .room-visual-banner {
-          height: 120px;
-          display: flex;
-          align-items: center;
-          padding: 0 24px;
-        }
+        .recurrence-section { margin-bottom: 20px; }
+        .checkbox-container { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+        .checkbox-label { font-size: 0.88rem; font-weight: 600; color: var(--foreground); }
+        .recurrence-panel { margin-top: 12px; padding: 16px; background: var(--bg-slate); border: 1px solid rgba(148, 163, 184, 0.1); animation: slideDown 0.25s ease-out; }
 
-        .banner-logo {
-          font-family: var(--font-outfit);
-          font-size: 2.2rem;
-          font-weight: 800;
-          color: rgba(255, 255, 255, 0.25);
-          letter-spacing: -0.04em;
-        }
+        .modal-footer-btn { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(148, 163, 184, 0.1); }
+        
+        .alert { padding: 12px 16px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 16px; line-height: 1.5; }
+        .alert-success { background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--success); }
+        .alert-danger { background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); color: var(--error); }
 
-        .profile-content {
-          padding: 24px;
-        }
+        .conflict-list { background: rgba(0,0,0,0.15); padding: 12px; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); }
+        .conflict-item { margin-top: 12px; padding-top: 12px; border-top: 1px dashed rgba(239,68,68,0.3); }
+        .conflict-item p { margin-bottom: 4px; color: var(--foreground); }
+        .btn-wa { display: inline-block; background: #25D366; color: white; padding: 6px 12px; border-radius: 6px; font-weight: 600; text-decoration: none; font-size: 0.8rem; transition: background 0.2s; }
+        .btn-wa:hover { background: #1ebd57; }
 
-        .profile-name {
-          font-size: 1.8rem;
-          color: var(--foreground);
-          margin-bottom: 12px;
-          line-height: 1.2;
-        }
-
-        .profile-desc {
-          font-size: 0.9rem;
-          color: var(--text-light);
-          line-height: 1.6;
-          margin-bottom: 20px;
-        }
-
-        .profile-specs-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-          gap: 12px;
-          margin-bottom: 20px;
-          background: var(--bg-slate);
-          padding: 14px;
-          border-radius: 12px;
-          border: 1px solid rgba(148, 163, 184, 0.1);
-        }
-
-        .spec-box {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .spec-label {
-          font-size: 0.75rem;
-          color: var(--text-muted);
-          font-weight: 600;
-          text-transform: uppercase;
-        }
-
-        .spec-val {
-          font-size: 0.9rem;
-          font-weight: 700;
-          color: var(--foreground);
-        }
-
-        .booking-form-card {
-          padding: 24px;
-          transition: all 0.3s ease;
-        }
-
-        :global(.form-highlight-flash) {
-          border-color: var(--primary) !important;
-          box-shadow: 0 0 20px var(--primary-glow) !important;
-          transform: scale(1.01);
-        }
-
-        .booking-form-card h3 {
-          font-size: 1.25rem;
-          color: var(--foreground);
-          margin-bottom: 4px;
-        }
-
-        .form-sub {
-          font-size: 0.85rem;
-          color: var(--text-muted);
-          margin-bottom: 24px;
-        }
-
-        .booking-form {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .form-row {
-          display: flex;
-          gap: 16px;
-        }
-
-        @media (max-width: 480px) {
-          .form-row {
-            flex-direction: column;
-            gap: 0;
-          }
-        }
-
-        .flex-1 {
-          flex: 1;
-        }
-
-        .select-input {
-          cursor: pointer;
-          appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 14px center;
-          background-size: 16px;
-          padding-right: 40px;
-        }
-
-        .recurrence-section {
-          margin-bottom: 20px;
-        }
-
-        .checkbox-container {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          cursor: pointer;
-          user-select: none;
-        }
-
-        .checkbox-label {
-          font-size: 0.88rem;
-          font-weight: 600;
-          color: var(--foreground);
-        }
-
-        .recurrence-panel {
-          margin-top: 12px;
-          padding: 16px;
-          background: var(--bg-slate);
-          border: 1px solid rgba(148, 163, 184, 0.1);
-          animation: slideDown 0.25s ease-out;
-        }
-
-        .helper-text-date {
-          font-size: 0.72rem;
-          color: var(--text-muted);
-          margin-top: 4px;
-        }
-
-        @keyframes slideDown {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        .submit-booking-btn {
-          margin-top: 12px;
-          padding: 14px 20px;
-          width: 100%;
-          border-radius: 8px;
-        }
-
-        .alert {
-          padding: 12px 16px;
-          border-radius: 8px;
-          font-size: 0.85rem;
-          margin-bottom: 20px;
-          line-height: 1.5;
-        }
-
-        .alert-success {
-          background: rgba(16, 185, 129, 0.12);
-          border: 1px solid rgba(16, 185, 129, 0.3);
-          color: var(--success);
-        }
-
-        .alert-danger {
-          background: rgba(239, 68, 68, 0.12);
-          border: 1px solid rgba(239, 68, 68, 0.3);
-          color: var(--error);
-        }
+        .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );

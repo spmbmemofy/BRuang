@@ -10,6 +10,7 @@ export interface Room {
   description: string;
   operatingHours: string; // "08:00 - 18:00"
   guidelines: string[];   // List of rules/guidelines
+  adminId?: string;       // ID of the Admin who owns this room
 }
 
 export interface Item {
@@ -19,6 +20,7 @@ export interface Item {
   currentLocation: string; // Where the item is currently located
   description: string;
   image?: string;
+  adminId?: string;        // ID of the Admin who owns this item
 }
 
 export interface Booking {
@@ -34,10 +36,24 @@ export interface Booking {
   createdAt: string;
 }
 
+export interface User {
+  id: string;
+  username: string;
+  passwordHash: string;
+  role: 'admin' | 'employee';
+  status: 'pending' | 'active';
+  contactInfo?: string;
+  createdAt: string;
+  institutionName?: string; // For Admin: The name of their institution
+  adminId?: string;         // For Employee: The ID of the Admin they belong to
+  visibility?: 'public' | 'private'; // For Admin: Privacy status of their institution
+}
+
 export interface DatabaseSchema {
   rooms: Room[];
   items: Item[];
   bookings: Booking[];
+  users: User[];
 }
 
 const dbPath = path.join(process.cwd(), 'src/data/db.json');
@@ -45,10 +61,12 @@ const dbPath = path.join(process.cwd(), 'src/data/db.json');
 export async function readDb(): Promise<DatabaseSchema> {
   try {
     const data = await fs.readFile(dbPath, 'utf8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    if (!parsed.users) parsed.users = [];
+    return parsed;
   } catch (error) {
     console.error('Error reading database file, returning empty schema:', error);
-    return { rooms: [], items: [], bookings: [] };
+    return { rooms: [], items: [], bookings: [], users: [] };
   }
 }
 
@@ -93,4 +111,57 @@ export async function addBooking(booking: Booking): Promise<void> {
   const db = await readDb();
   db.bookings.push(booking);
   await writeDb(db);
+}
+
+export async function addItems(items: Item[]): Promise<void> {
+  const db = await readDb();
+  if (!db.items) db.items = [];
+  db.items.push(...items);
+  await writeDb(db);
+}
+
+export async function updateItemLocation(id: string, newLocation: string): Promise<boolean> {
+  const db = await readDb();
+  if (!db.items) return false;
+  
+  const index = db.items.findIndex(i => i.id === id);
+  if (index === -1) return false;
+  
+  db.items[index].currentLocation = newLocation;
+  await writeDb(db);
+  return true;
+}
+
+export async function getUsers(): Promise<User[]> {
+  const db = await readDb();
+  return db.users || [];
+}
+
+export async function getUserById(id: string): Promise<User | undefined> {
+  const db = await readDb();
+  return db.users?.find(u => u.id === id);
+}
+
+export async function getUserByUsername(username: string): Promise<User | undefined> {
+  const db = await readDb();
+  return db.users?.find(u => u.username === username);
+}
+
+export async function addUser(user: User): Promise<void> {
+  const db = await readDb();
+  if (!db.users) db.users = [];
+  db.users.push(user);
+  await writeDb(db);
+}
+
+export async function updateUserStatus(id: string, status: 'pending' | 'active'): Promise<boolean> {
+  const db = await readDb();
+  if (!db.users) return false;
+  
+  const index = db.users.findIndex(u => u.id === id);
+  if (index === -1) return false;
+  
+  db.users[index].status = status;
+  await writeDb(db);
+  return true;
 }

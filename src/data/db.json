@@ -107,5 +107,67 @@
       "description": "Sistem mikrofon nirkabel ganda, jangkauan hingga 50 meter. Baterai AA."
     }
   ],
-  "bookings": []
+  "bookings": [
+    {
+      "id": "booking-1785036859302-rqnhkotsd",
+      "targetId": "ruang-kreatif",
+      "targetType": "room",
+      "user": "admin",
+      "contactInfo": "082255282548",
+      "date": "2026-07-09",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "purpose": "KBM",
+      "createdAt": "2026-07-26T03:34:19.302Z"
+    },
+    {
+      "id": "booking-1785036859302-922kyf6kz",
+      "targetId": "ruang-kreatif",
+      "targetType": "room",
+      "user": "admin",
+      "contactInfo": "082255282548",
+      "date": "2026-07-16",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "purpose": "KBM",
+      "createdAt": "2026-07-26T03:34:19.302Z"
+    },
+    {
+      "id": "booking-1785036859302-eyda4wjrw",
+      "targetId": "ruang-kreatif",
+      "targetType": "room",
+      "user": "admin",
+      "contactInfo": "082255282548",
+      "date": "2026-07-23",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "purpose": "KBM",
+      "createdAt": "2026-07-26T03:34:19.302Z"
+    },
+    {
+      "id": "booking-1785037386180-h97lkgql4",
+      "targetId": "ruang-kreatif",
+      "targetType": "room",
+      "user": "admin",
+      "contactInfo": "081234567890",
+      "date": "2026-07-27",
+      "startTime": "09:20",
+      "endTime": "10:10",
+      "purpose": "KBM",
+      "createdAt": "2026-07-26T03:43:06.180Z"
+    }
+  ],
+  "users": [
+    {
+      "id": "user-1785031462048",
+      "username": "adminsmapat",
+      "passwordHash": "$2b$10$7f8Y133QG4Qyg6THuOw.kOWiEk0/6KFF.x9Hdonuddju8AL39tmrC",
+      "role": "admin",
+      "status": "active",
+      "contactInfo": "081234567890",
+      "createdAt": "2026-07-26T02:04:22.048Z",
+      "institutionName": "SMAN 4 Berau",
+      "visibility": "public"
+    }
+  ]
 }

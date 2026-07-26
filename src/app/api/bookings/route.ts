@@ -113,9 +113,10 @@ export async function POST(request: NextRequest) {
     // Check for collision across all dates
     const allBookings = await getBookings();
     const conflicts: string[] = [];
+    const conflictDetails: any[] = [];
 
     dates.forEach(d => {
-      const hasCollision = allBookings.some(b => {
+      const collisions = allBookings.filter(b => {
         return (
           b.targetId === targetId &&
           b.date === d &&
@@ -124,21 +125,25 @@ export async function POST(request: NextRequest) {
         );
       });
 
-      if (hasCollision) {
+      if (collisions.length > 0) {
+        conflictDetails.push(...collisions);
         try {
           const formattedDate = new Date(d).toLocaleDateString('id-ID', {
             weekday: 'long', day: 'numeric', month: 'short',
           });
-          conflicts.push(formattedDate);
+          if (!conflicts.includes(formattedDate)) conflicts.push(formattedDate);
         } catch {
-          conflicts.push(d);
+          if (!conflicts.includes(d)) conflicts.push(d);
         }
       }
     });
 
     if (conflicts.length > 0) {
       return NextResponse.json(
-        { error: `Jadwal bentrok pada tanggal: ${conflicts.join(', ')}. Pemesanan dibatalkan.` },
+        { 
+          error: `Jadwal bentrok pada tanggal: ${conflicts.join(', ')}. Pemesanan dibatalkan.`,
+          conflictDetails 
+        },
         { status: 409 }
       );
     }
