@@ -57,6 +57,22 @@ export default function RoomCard({ room, isOccupied, occupiedUntil, onViewQR }: 
           </div>
         </div>
 
+        {/* Facilities display */}
+        {((room as any).computedFacilities || room.facilities) && ((room as any).computedFacilities || room.facilities).length > 0 && (
+          <div className="room-card-facilities" style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {((room as any).computedFacilities || room.facilities).slice(0, 3).map((fac: string, idx: number) => (
+              <span key={idx} style={{ fontSize: '0.75rem', padding: '4px 8px', borderRadius: '12px', background: 'rgba(255,255,255,0.1)', color: '#aaa', border: '1px solid rgba(255,255,255,0.2)' }}>
+                {fac}
+              </span>
+            ))}
+            {((room as any).computedFacilities || room.facilities).length > 3 && (
+              <span style={{ fontSize: '0.75rem', padding: '4px 8px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)', color: '#888' }}>
+                +{((room as any).computedFacilities || room.facilities).length - 3} lainnya
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="room-actions">
           <button 

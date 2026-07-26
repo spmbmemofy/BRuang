@@ -477,7 +477,14 @@ export default function Dashboard() {
               <div className="form-row">
                 <div className="form-group flex-1">
                   <label className="form-label">Kategori</label>
-                  <input type="text" placeholder="Contoh: Elektronik" className="form-input" value={itemCategory} onChange={(e) => setItemCategory(e.target.value)} required />
+                  <select className="form-input" value={itemCategory} onChange={(e) => setItemCategory(e.target.value)} required>
+                    <option value="">-- Pilih Kategori --</option>
+                    <option value="Elektronik">Elektronik</option>
+                    <option value="Mebel & Furnitur">Mebel & Furnitur</option>
+                    <option value="Alat Tulis & Kantor">Alat Tulis & Kantor</option>
+                    <option value="Perangkat IT">Perangkat IT</option>
+                    <option value="Lainnya">Lainnya</option>
+                  </select>
                 </div>
                 <div className="form-group flex-1">
                   <label className="form-label">Lokasi Penyimpanan (Pilih Ruangan)</label>
