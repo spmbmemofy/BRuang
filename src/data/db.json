@@ -1,0 +1,111 @@
+{
+  "rooms": [
+    {
+      "id": "ruang-kreatif",
+      "name": "Ruang Kreatif",
+      "capacity": 10,
+      "facilities": [
+        "Whiteboard",
+        "Projector",
+        "AC",
+        "High-speed Wi-Fi"
+      ],
+      "image": "creative_room",
+      "description": "Ruangan bernuansa santai yang sangat cocok untuk sesi brainstorming, perancangan ide, dan kolaborasi tim kecil.",
+      "operatingHours": "08:00 - 18:00",
+      "guidelines": [
+        "Harap matikan proyektor dan AC setelah digunakan.",
+        "Jaga kebersihan papan tulis setelah rapat.",
+        "Kapasitas maksimal ruangan adalah 10 orang."
+      ]
+    },
+    {
+      "id": "ruang-kolaborasi",
+      "name": "Ruang Kolaborasi",
+      "capacity": 15,
+      "facilities": [
+        "Smart TV",
+        "Sound System",
+        "AC",
+        "Coffee Maker",
+        "Whiteboard"
+      ],
+      "image": "collab_room",
+      "description": "Ruangan luas dengan fasilitas multimedia lengkap, ideal untuk presentasi, workshop kecil, dan diskusi kelompok interaktif.",
+      "operatingHours": "09:00 - 21:00",
+      "guidelines": [
+        "Dilarang membawa makanan berat.",
+        "Boleh memutar audio/musik dengan volume sedang.",
+        "Rapikan gelas kopi ke wastafel setelah selesai."
+      ]
+    },
+    {
+      "id": "ruang-fokus",
+      "name": "Ruang Fokus",
+      "capacity": 4,
+      "facilities": [
+        "Ergonomic Chairs",
+        "AC",
+        "Whiteboard",
+        "High-speed Wi-Fi"
+      ],
+      "image": "focus_room",
+      "description": "Ruangan tenang kedap suara untuk rapat internal penting atau diskusi yang membutuhkan konsentrasi tinggi.",
+      "operatingHours": "08:00 - 20:00",
+      "guidelines": [
+        "Jaga ketenangan, ruangan ini didesain kedap suara untuk konsentrasi tinggi.",
+        "Dilarang berisik atau memutar musik tanpa headphone."
+      ]
+    },
+    {
+      "id": "auditorium",
+      "name": "Auditorium",
+      "capacity": 50,
+      "facilities": [
+        "Stage",
+        "LED Screen",
+        "Sound System",
+        "AC",
+        "Wireless Mic"
+      ],
+      "image": "auditorium_room",
+      "description": "Ruangan berkapasitas besar untuk acara seminar, presentasi skala besar, training korporat, atau townhall meeting.",
+      "operatingHours": "08:00 - 22:00",
+      "guidelines": [
+        "Pemesanan harus diajukan minimal H-1 sebelum penggunaan.",
+        "Kebersihan panggung dan kursi adalah tanggung jawab pemesan."
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "item-proyektor-1",
+      "name": "Proyektor Infocus X1",
+      "category": "Elektronik",
+      "currentLocation": "Ruang Kreatif",
+      "description": "Proyektor portabel resolusi 1080p, cocok untuk presentasi mobile. Dilengkapi kabel HDMI dan remote."
+    },
+    {
+      "id": "item-kamera-canon",
+      "name": "Kamera Canon EOS R",
+      "category": "Elektronik",
+      "currentLocation": "Lemari Penyimpanan IT (Lantai 2)",
+      "description": "Kamera mirrorless full-frame untuk dokumentasi acara. Termasuk lensa 24-105mm dan 2 baterai."
+    },
+    {
+      "id": "item-pointer-logitech",
+      "name": "Logitech Presenter Spotlight",
+      "category": "Aksesoris",
+      "currentLocation": "Ruang Kolaborasi",
+      "description": "Laser pointer dan presenter canggih dengan fitur on-screen highlight."
+    },
+    {
+      "id": "item-mic-wireless",
+      "name": "Mic Wireless Sennheiser Dual",
+      "category": "Audio",
+      "currentLocation": "Auditorium",
+      "description": "Sistem mikrofon nirkabel ganda, jangkauan hingga 50 meter. Baterai AA."
+    }
+  ],
+  "bookings": []
+}
