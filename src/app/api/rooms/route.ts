@@ -58,7 +58,6 @@ export async function POST(request: NextRequest) {
     if (
       !name ||
       !capacity ||
-      !facilities ||
       !description ||
       !operatingHours ||
       !guidelines
@@ -88,9 +87,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const facilitiesList = Array.isArray(facilities)
-      ? facilities.map(f => f.trim()).filter(Boolean)
-      : facilities.split(',').map((f: string) => f.trim()).filter(Boolean);
+    const facilitiesList = facilities
+      ? (Array.isArray(facilities)
+          ? facilities.map(f => f.trim()).filter(Boolean)
+          : facilities.split(',').map((f: string) => f.trim()).filter(Boolean))
+      : [];
 
     const guidelinesList = Array.isArray(guidelines)
       ? guidelines.map(g => g.trim()).filter(Boolean)

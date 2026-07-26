@@ -125,7 +125,7 @@ export default function Dashboard() {
     setSubmitError(null);
     setSubmitSuccess(false);
 
-    if (!roomName.trim() || !facilities.trim() || !roomDescription.trim() || !operatingHours.trim() || !roomGuidelines.trim()) {
+    if (!roomName.trim() || !roomDescription.trim() || !operatingHours.trim() || !roomGuidelines.trim()) {
       setSubmitError('Semua field ruangan wajib diisi.');
       setSubmitLoading(false);
       return;
@@ -138,7 +138,6 @@ export default function Dashboard() {
         body: JSON.stringify({
           name: roomName.trim(),
           capacity,
-          facilities,
           description: roomDescription,
           operatingHours: operatingHours.trim(),
           guidelines: roomGuidelines,
@@ -433,10 +432,7 @@ export default function Dashboard() {
                   <input type="text" className="form-input" value={operatingHours} onChange={(e) => setOperatingHours(e.target.value)} required />
                 </div>
               </div>
-              <div className="form-group">
-                <label className="form-label">Fasilitas</label>
-                <input type="text" className="form-input" value={facilities} onChange={(e) => setFacilities(e.target.value)} required />
-              </div>
+
               <div className="form-group">
                 <label className="form-label">Peraturan (Tulis per baris)</label>
                 <textarea className="form-input textarea-input" rows={2} value={roomGuidelines} onChange={(e) => setRoomGuidelines(e.target.value)} required />
