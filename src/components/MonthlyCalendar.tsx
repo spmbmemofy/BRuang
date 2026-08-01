@@ -56,7 +56,9 @@ export default function MonthlyCalendar({ selectedDate, onSelectDate, bookedDate
           onClick={() => onSelectDate(dateStr)}
           title="Lihat Jadwal"
         >
-          <span className="day-number">{d}</span>
+          <div className="day-wrapper">
+            <span className="day-number">{d}</span>
+          </div>
           {hasBooking && <span className="booking-dot"></span>}
         </div>
       );
@@ -148,18 +150,28 @@ export default function MonthlyCalendar({ selectedDate, onSelectDate, bookedDate
         .header-cell {
           font-weight: 600;
           color: var(--text-muted);
-          font-size: 0.8rem;
+          font-size: 0.85rem;
           aspect-ratio: auto;
           padding-bottom: 12px;
           text-transform: uppercase;
           text-align: center;
+          letter-spacing: 0.05em;
+        }
+
+        .day-wrapper {
+          width: 38px;
+          height: 38px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .day {
           cursor: pointer;
           background: transparent;
-          border-radius: 8px;
-          border: 1px solid transparent;
+          border-radius: 12px;
           transition: all 0.2s ease;
         }
 
@@ -170,18 +182,16 @@ export default function MonthlyCalendar({ selectedDate, onSelectDate, bookedDate
           color: var(--foreground);
         }
 
-        .day:hover {
+        .day:hover .day-wrapper {
           background: var(--bg-card-hover);
-          border-color: var(--border-glow-hover);
         }
 
-        .day:active {
-          transform: scale(0.95);
-          background: var(--border-glow-hover);
+        .day:active .day-wrapper {
+          transform: scale(0.92);
         }
 
-        .today {
-          border-color: var(--primary);
+        .today .day-wrapper {
+          border: 1.5px solid var(--primary);
         }
         
         .today .day-number {
@@ -189,27 +199,29 @@ export default function MonthlyCalendar({ selectedDate, onSelectDate, bookedDate
           font-weight: 700;
         }
 
-        .selected {
+        .selected .day-wrapper {
           background: var(--primary) !important;
-          border-color: var(--primary) !important;
+          border: none !important;
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+          transform: scale(1.05);
         }
 
         .selected .day-number {
-          font-weight: 600;
+          font-weight: 700;
           color: white;
         }
 
         .booking-dot {
-          width: 4px;
-          height: 4px;
+          width: 5px;
+          height: 5px;
           background-color: var(--primary);
           border-radius: 50%;
           position: absolute;
-          bottom: 6px;
+          bottom: 4px;
         }
 
         .selected .booking-dot {
-          background-color: white;
+          background-color: rgba(255, 255, 255, 0.9);
         }
       `}</style>
     </div>
