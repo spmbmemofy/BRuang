@@ -81,7 +81,7 @@ export default function MonthlyCalendar({ selectedDate, onSelectDate, bookedDate
         {renderCells()}
       </div>
 
-      <style jsx>{`
+      <style jsx global>{`
         .monthly-calendar {
           width: 100%;
           padding: 24px;
@@ -132,13 +132,13 @@ export default function MonthlyCalendar({ selectedDate, onSelectDate, bookedDate
           transform: scale(0.95);
         }
 
-        .calendar-grid {
+        .monthly-calendar .calendar-grid {
           display: grid;
           grid-template-columns: repeat(7, 1fr);
           gap: 4px;
         }
 
-        .calendar-cell {
+        .monthly-calendar .calendar-cell {
           aspect-ratio: 1;
           display: flex;
           flex-direction: column;
@@ -147,7 +147,7 @@ export default function MonthlyCalendar({ selectedDate, onSelectDate, bookedDate
           position: relative;
         }
 
-        .header-cell {
+        .monthly-calendar .header-cell {
           font-weight: 600;
           color: var(--text-muted);
           font-size: 0.85rem;
@@ -158,7 +158,7 @@ export default function MonthlyCalendar({ selectedDate, onSelectDate, bookedDate
           letter-spacing: 0.05em;
         }
 
-        .day-wrapper {
+        .monthly-calendar .day-wrapper {
           width: 38px;
           height: 38px;
           display: flex;
@@ -168,50 +168,50 @@ export default function MonthlyCalendar({ selectedDate, onSelectDate, bookedDate
           transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .day {
+        .monthly-calendar .day {
           cursor: pointer;
           background: transparent;
           border-radius: 12px;
           transition: all 0.2s ease;
         }
 
-        .day-number {
+        .monthly-calendar .day-number {
           font-size: 1rem;
           font-weight: 500;
           z-index: 2;
           color: var(--foreground);
         }
 
-        .day:hover .day-wrapper {
+        .monthly-calendar .day:hover .day-wrapper {
           background: var(--bg-card-hover);
         }
 
-        .day:active .day-wrapper {
+        .monthly-calendar .day:active .day-wrapper {
           transform: scale(0.92);
         }
 
-        .today .day-wrapper {
+        .monthly-calendar .today .day-wrapper {
           border: 1.5px solid var(--primary);
         }
         
-        .today .day-number {
+        .monthly-calendar .today .day-number {
           color: var(--primary);
           font-weight: 700;
         }
 
-        .selected .day-wrapper {
+        .monthly-calendar .selected .day-wrapper {
           background: var(--primary) !important;
           border: none !important;
           box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
           transform: scale(1.05);
         }
 
-        .selected .day-number {
+        .monthly-calendar .selected .day-number {
           font-weight: 700;
           color: white;
         }
 
-        .booking-dot {
+        .monthly-calendar .booking-dot {
           width: 5px;
           height: 5px;
           background-color: var(--primary);
@@ -220,7 +220,7 @@ export default function MonthlyCalendar({ selectedDate, onSelectDate, bookedDate
           bottom: 4px;
         }
 
-        .selected .booking-dot {
+        .monthly-calendar .selected .booking-dot {
           background-color: rgba(255, 255, 255, 0.9);
         }
       `}</style>
