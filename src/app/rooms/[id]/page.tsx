@@ -54,6 +54,7 @@ export default function RoomDetailPage({ params }: PageProps) {
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitConflicts, setSubmitConflicts] = useState<Booking[]>([]);
+  const [expandedFacility, setExpandedFacility] = useState<any>(null);
 
 
   // Calculate maximum recurrence date (3 months from current selected date)
@@ -147,6 +148,27 @@ export default function RoomDetailPage({ params }: PageProps) {
       setEditLoading(false);
     }
   };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({ title: `Booking Ruangan: ${room?.name}`, url: window.location.href });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      alert('Link disalin ke clipboard!');
+    }
+  };
+
+  const groupedFacilities = Array.from((room?.computedFacilities || room?.facilities || []).reduce((acc: any, fac: string) => {
+    const baseName = fac.replace(/\s*-\s*\d+$/, '');
+    if (!acc.has(baseName)) {
+      acc.set(baseName, { name: baseName, count: 1, items: [fac] });
+    } else {
+      const group = acc.get(baseName);
+      group.count += 1;
+      group.items.push(fac);
+    }
+    return acc;
+  }, new Map()).values());
 
   const handleDeleteRoom = async () => {
     if (!room) return;
@@ -321,8 +343,21 @@ export default function RoomDetailPage({ params }: PageProps) {
               <div className="profile-facilities">
                 <h5>Fasilitas Ruangan:</h5>
                 <div className="facility-tags">
-                  {(room.computedFacilities || room.facilities).map((fac, idx) => (
-                    <span key={idx} className="facility-pill">{fac}</span>
+                  {groupedFacilities.map((facGroup: any, idx: number) => (
+                    <span 
+                      key={idx} 
+                      className="facility-pill" 
+                      onClick={() => facGroup.count > 1 ? setExpandedFacility(facGroup) : null}
+                      style={{ cursor: facGroup.count > 1 ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      title={facGroup.count > 1 ? "Klik untuk melihat rincian unit" : ""}
+                    >
+                      {facGroup.name}
+                      {facGroup.count > 1 && (
+                        <span style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '8px', fontSize: '0.7rem' }}>
+                          {facGroup.count} Unit
+                        </span>
+                      )}
+                    </span>
                   ))}
                 </div>
               </div>
@@ -541,6 +576,28 @@ export default function RoomDetailPage({ params }: PageProps) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Facility Expansion Modal */}
+      {expandedFacility && (
+        <div className="modal-backdrop" onClick={() => setExpandedFacility(null)}>
+          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📋 Daftar Unit: {expandedFacility.name}</h3>
+              <button className="close-btn" onClick={() => setExpandedFacility(null)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <ul className="guidelines-list" style={{ listStyleType: 'disc', paddingLeft: '24px' }}>
+                {expandedFacility.items.map((item: string, idx: number) => (
+                  <li key={idx} style={{ marginBottom: '8px', color: 'var(--foreground)' }}>{item}</li>
+                ))}
+              </ul>
+              <div className="modal-footer-btn" style={{ marginTop: '24px' }}>
+                <button className="btn-neon-outline cancel-btn" onClick={() => setExpandedFacility(null)}>Tutup</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
