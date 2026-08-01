@@ -54,7 +54,10 @@ export default function RoomDetailPage({ params }: PageProps) {
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitConflicts, setSubmitConflicts] = useState<Booking[]>([]);
+  const [recommendations, setRecommendations] = useState<Room[]>([]);
   const [expandedFacility, setExpandedFacility] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isUrgent, setIsUrgent] = useState(false);
 
 
   // Calculate maximum recurrence date (3 months from current selected date)
@@ -94,6 +97,7 @@ export default function RoomDetailPage({ params }: PageProps) {
         if (meData.user) {
           setUserName(meData.user.username);
           setContactInfo(meData.user.contactInfo || '');
+          setUserRole(meData.user.role || null);
         }
       }
 
@@ -228,6 +232,7 @@ export default function RoomDetailPage({ params }: PageProps) {
           purpose,
           recurrence: isRecurring ? recurrence : 'none',
           recurrenceEndDate: isRecurring ? recurrenceEndDate : undefined,
+          isUrgent: userRole === 'admin' ? isUrgent : false,
         }),
       });
 
@@ -239,6 +244,17 @@ export default function RoomDetailPage({ params }: PageProps) {
           // Remove duplicate conflicts by ID just in case
           const uniqueConflicts = data.conflictDetails.filter((v: Booking, i: number, a: Booking[]) => a.findIndex(t => (t.id === v.id)) === i);
           setSubmitConflicts(uniqueConflicts);
+          
+          // Fetch recommendations
+          try {
+            const recRes = await fetch(`/api/public/recommendations?roomId=${roomId}&date=${selectedDate}&startTime=${startTime}&endTime=${endTime}`);
+            if (recRes.ok) {
+              const recData = await recRes.json();
+              setRecommendations(recData.recommendations || []);
+            }
+          } catch (e) {
+            console.error('Failed to fetch recommendations', e);
+          }
         }
         setSubmitLoading(false);
         return;
@@ -512,6 +528,22 @@ export default function RoomDetailPage({ params }: PageProps) {
                       ))}
                     </div>
                   )}
+
+                  {recommendations.length > 0 && (
+                    <div className="recommendations-list mt-3 p-3" style={{ background: 'var(--bg-slate)', borderRadius: '8px', border: '1px solid var(--border-glow)' }}>
+                      <strong style={{ color: 'var(--primary)' }}>💡 Rekomendasi Ruangan Alternatif yang Kosong:</strong>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                        {recommendations.map(rec => (
+                          <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span>{rec.name} (Kapasitas: {rec.capacity})</span>
+                            <a href={`/rooms/${rec.id}`} className="btn-neon-outline" style={{ padding: '4px 8px', fontSize: '0.8rem' }}>
+                              Lihat Ruangan
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -568,6 +600,17 @@ export default function RoomDetailPage({ params }: PageProps) {
                 <label className="form-label">Keperluan / Agenda</label>
                 <input type="text" placeholder="Contoh: Rapat Evaluasi..." className="form-input" value={purpose} onChange={(e) => setPurpose(e.target.value)} required />
               </div>
+
+              {userRole === 'admin' && (
+                <div className="form-group urgent-override-section" style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                  <label className="checkbox-container" style={{ margin: 0 }}>
+                    <input type="checkbox" checked={isUrgent} onChange={(e) => setIsUrgent(e.target.checked)} />
+                    <span className="checkbox-checkmark" style={{ borderColor: '#ef4444' }}></span>
+                    <span className="checkbox-label" style={{ color: '#ef4444', fontWeight: 600 }}>⚠️ Ganti Peminjaman Terdahulu (Urgent Override)</span>
+                  </label>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '32px', marginTop: '4px' }}>Hanya gunakan fitur ini untuk agenda mendesak tingkat instansi. Peminjaman yang bentrok akan otomatis dihapus.</p>
+                </div>
+              )}
 
               <div className="modal-footer-btn">
                 <button type="button" className="btn-neon-outline cancel-btn" onClick={() => setIsBookingModalOpen(false)}>Batal</button>

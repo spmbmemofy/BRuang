@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRooms, getItems, getBookings, readDb, addBookings } from '@/lib/db';
+import { getRooms, getItems, getBookings, readDb, addBookings, deleteBooking, logActivity } from '@/lib/db';
+import { getSession } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,8 +43,11 @@ export async function POST(request: NextRequest) {
       endTime, 
       purpose, 
       recurrence = 'none', 
-      recurrenceEndDate 
+      recurrenceEndDate,
+      isUrgent = false
     } = await request.json();
+
+    const currentUser = await getSession();
 
     // Validation
     if (!targetId || !targetType || !user || !contactInfo || !date || !startTime || !endTime || !purpose) {
@@ -139,13 +143,27 @@ export async function POST(request: NextRequest) {
     });
 
     if (conflicts.length > 0) {
-      return NextResponse.json(
-        { 
-          error: `Jadwal bentrok pada tanggal: ${conflicts.join(', ')}. Pemesanan dibatalkan.`,
-          conflictDetails 
-        },
-        { status: 409 }
-      );
+      if (isUrgent && currentUser?.role === 'admin') {
+        // Admin overrides: delete all conflicting bookings
+        for (const conflict of conflictDetails) {
+          await deleteBooking(conflict.id);
+          await logActivity(
+            'OVERRIDE',
+            'booking',
+            conflict.id,
+            `Booking overridden by admin ${currentUser.username} for urgent purpose: ${purpose}`,
+            currentUser.username
+          );
+        }
+      } else {
+        return NextResponse.json(
+          { 
+            error: `Jadwal bentrok pada tanggal: ${conflicts.join(', ')}. Pemesanan dibatalkan.`,
+            conflictDetails 
+          },
+          { status: 409 }
+        );
+      }
     }
 
     // Atomic insert
@@ -164,6 +182,17 @@ export async function POST(request: NextRequest) {
     }));
 
     await addBookings(newEntries);
+
+    // Log the successful booking creation
+    if (currentUser) {
+      await logActivity(
+        'CREATE',
+        'booking',
+        newEntries[0].id,
+        `Booking created for ${dates.length} schedule(s): ${purpose}`,
+        currentUser.username
+      );
+    }
 
     return NextResponse.json(
       { 

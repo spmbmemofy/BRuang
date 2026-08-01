@@ -49,11 +49,22 @@ export interface User {
   visibility?: 'public' | 'private';
 }
 
+export interface ActivityLog {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  details: string;
+  performed_by: string;
+  created_at: string;
+}
+
 export interface DatabaseSchema {
   rooms: Room[];
   items: Item[];
   bookings: Booking[];
   users: User[];
+  activity_logs?: ActivityLog[];
 }
 
 export async function readDb(): Promise<DatabaseSchema> {
@@ -123,6 +134,11 @@ export async function addBookings(bookings: Booking[]): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function deleteBooking(id: string): Promise<boolean> {
+  const { error } = await supabase.from('bookings').delete().eq('id', id);
+  return !error;
+}
+
 export async function addItems(items: Item[]): Promise<void> {
   const { error } = await supabase.from('items').insert(items);
   if (error) throw new Error(error.message);
@@ -136,6 +152,33 @@ export async function updateItemLocation(id: string, newLocation: string): Promi
 export async function updateItem(id: string, updatedData: Partial<Item>): Promise<boolean> {
   const { error } = await supabase.from('items').update(updatedData).eq('id', id);
   return !error;
+}
+
+export async function deleteUser(id: string): Promise<boolean> {
+  const { error } = await supabase.from('users').delete().eq('id', id);
+  return !error;
+}
+
+export async function logActivity(action: string, entity_type: string, entity_id: string, details: string, performed_by: string): Promise<void> {
+  const { error } = await supabase.from('activity_logs').insert([{
+    action,
+    entity_type,
+    entity_id,
+    details,
+    performed_by
+  }]);
+  if (error) {
+    console.error('Failed to log activity:', error);
+  }
+}
+
+export async function getActivityLogs(): Promise<ActivityLog[]> {
+  const { data, error } = await supabase.from('activity_logs').select('*').order('created_at', { ascending: false });
+  if (error) {
+    console.error('Failed to get activity logs:', error);
+    return [];
+  }
+  return data || [];
 }
 
 export async function deleteItem(id: string): Promise<boolean> {

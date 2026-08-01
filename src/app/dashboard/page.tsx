@@ -6,10 +6,13 @@ import RoomCard from '@/components/RoomCard';
 import ItemCard from '@/components/ItemCard';
 import QRCodeModal from '@/components/QRCodeModal';
 import ThemeToggle from '@/components/ThemeToggle';
+import DailyTimeline from '@/components/DailyTimeline';
 import { Room, Item } from '@/lib/db';
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'rooms' | 'items' | 'users'>('rooms');
+  const [activeTab, setActiveTab] = useState<'rooms' | 'items' | 'users' | 'timeline' | 'logs'>('rooms');
+  const [timelineDate, setTimelineDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [logs, setLogs] = useState<any[]>([]);
   
   const [session, setSession] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
@@ -97,6 +100,9 @@ export default function Dashboard() {
       if (meData.user?.role === 'admin') {
         const usersRes = await fetch('/api/users');
         if (usersRes.ok) setUsers(await usersRes.json());
+        
+        const logsRes = await fetch('/api/logs');
+        if (logsRes.ok) setLogs(await logsRes.json());
       }
 
       setRooms(roomsData);
@@ -308,16 +314,30 @@ export default function Dashboard() {
             📦 Daftar Barang
           </button>
           {session?.role === 'admin' && (
-            <button 
-              className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
-              onClick={() => { setActiveTab('users'); setSearchQuery(''); }}
-            >
-              👥 Manajemen Karyawan
-            </button>
+            <>
+              <button 
+                className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('users'); setSearchQuery(''); }}
+              >
+                👥 Manajemen Karyawan
+              </button>
+              <button 
+                className={`tab-btn ${activeTab === 'timeline' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('timeline'); setSearchQuery(''); }}
+              >
+                📅 Timeline Jadwal
+              </button>
+              <button 
+                className={`tab-btn ${activeTab === 'logs' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('logs'); setSearchQuery(''); }}
+              >
+                📜 Riwayat Aktivitas
+              </button>
+            </>
           )}
         </div>
 
-        {activeTab !== 'users' && (
+        {activeTab !== 'users' && activeTab !== 'timeline' && activeTab !== 'logs' && (
           <section className="search-stats-section mt-4">
             <div className="search-box glass-panel">
               <span className="search-icon">🔍</span>
