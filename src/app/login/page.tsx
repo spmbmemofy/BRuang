@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [selectedAdminId, setSelectedAdminId] = useState('');
   const [registerRole, setRegisterRole] = useState<'employee' | 'admin'>('employee');
   const [institutionName, setInstitutionName] = useState('');
+  const [hasSelectedRole, setHasSelectedRole] = useState(false);
 
   // Fetch admins list when tab switches to Register
   React.useEffect(() => {
@@ -107,98 +108,111 @@ export default function LoginPage() {
 
         <div className="auth-tabs">
           <button type="button" className={`auth-tab ${isLogin ? 'active' : ''}`} onClick={() => {setIsLogin(true); setError(''); setSuccess('');}}>Masuk</button>
-          <button type="button" className={`auth-tab ${!isLogin ? 'active' : ''}`} onClick={() => {setIsLogin(false); setError(''); setSuccess('');}}>Daftar</button>
+          <button type="button" className={`auth-tab ${!isLogin ? 'active' : ''}`} onClick={() => {setIsLogin(false); setError(''); setSuccess(''); setHasSelectedRole(false);}}>Daftar</button>
         </div>
 
         {error && <div className="alert alert-danger">{error}</div>}
         {success && <div className="alert alert-success">{success}</div>}
 
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label className="form-label">Username</label>
-            <input 
-              type="text" 
-              className="form-input" 
-              placeholder="Masukkan username" 
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
+        {!isLogin && !hasSelectedRole ? (
+          <div className="role-selection animate-slide-up" style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+            <h3 style={{ textAlign: 'center', color: 'var(--foreground)', fontSize: '1.2rem', marginBottom: '8px' }}>Pilih Jenis Akun</h3>
+            <button 
+              type="button"
+              className="role-btn"
+              onClick={() => { setRegisterRole('employee'); setHasSelectedRole(true); }}
+            >
+              <span className="role-icon">👤</span>
+              <div className="role-text">
+                <strong>Pengguna / Staf</strong>
+                <span>Mendaftar ke dalam instansi yang sudah ada</span>
+              </div>
+            </button>
+            <button 
+              type="button"
+              className="role-btn"
+              onClick={() => { setRegisterRole('admin'); setHasSelectedRole(true); }}
+            >
+              <span className="role-icon">🏢</span>
+              <div className="role-text">
+                <strong>Admin Instansi</strong>
+                <span>Mendaftarkan dan mengelola instansi baru</span>
+              </div>
+            </button>
           </div>
-          <div className="form-group">
-            <label className="form-label">Password</label>
-            <input 
-              type="password" 
-              className="form-input" 
-              placeholder="Masukkan password" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-
-          {!isLogin && (
-            <div className="form-group animate-fade-in" style={{ display: 'flex', gap: '16px', margin: '8px 0' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input 
-                  type="radio" 
-                  name="role" 
-                  value="employee" 
-                  checked={registerRole === 'employee'}
-                  onChange={() => setRegisterRole('employee')}
-                />
-                Daftar sebagai Staf / Anggota
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input 
-                  type="radio" 
-                  name="role" 
-                  value="admin" 
-                  checked={registerRole === 'admin'}
-                  onChange={() => setRegisterRole('admin')}
-                />
-                Daftar sebagai Instansi (Admin)
-              </label>
-            </div>
-          )}
-
-          {!isLogin && registerRole === 'employee' && (
-            <div className="form-group animate-fade-in">
-              <label className="form-label">Pilih Instansi Tujuan</label>
-              <select 
-                className="form-input" 
-                value={selectedAdminId} 
-                onChange={(e) => setSelectedAdminId(e.target.value)}
-                required={!isLogin && registerRole === 'employee'}
+        ) : (
+          <form onSubmit={handleSubmit} className="auth-form animate-fade-in">
+            {!isLogin && (
+              <button 
+                type="button" 
+                className="back-btn" 
+                onClick={() => setHasSelectedRole(false)}
               >
-                <option value="">-- Pilih Instansi --</option>
-                {admins.map(admin => (
-                  <option key={admin.id} value={admin.id}>
-                    {admin.institutionName} (Admin: {admin.username})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {!isLogin && registerRole === 'admin' && (
-            <div className="form-group animate-fade-in">
-              <label className="form-label">Nama Instansi</label>
+                ← Kembali pilih jenis akun
+              </button>
+            )}
+            
+            <div className="form-group">
+              <label className="form-label">Username</label>
               <input 
                 type="text" 
                 className="form-input" 
-                placeholder="Contoh: PT. Sukses Makmur" 
-                value={institutionName}
-                onChange={(e) => setInstitutionName(e.target.value)}
-                required={!isLogin && registerRole === 'admin'}
+                placeholder="Masukkan username" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
               />
             </div>
-          )}
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <input 
+                type="password" 
+                className="form-input" 
+                placeholder="Masukkan password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
 
-          <button type="submit" className="btn-neon submit-btn" disabled={loading}>
-            {loading ? 'Memproses...' : (isLogin ? 'Masuk ke Sistem' : 'Daftar Sekarang')}
-          </button>
-        </form>
+            {!isLogin && registerRole === 'employee' && (
+              <div className="form-group animate-fade-in">
+                <label className="form-label">Pilih Instansi Tujuan</label>
+                <select 
+                  className="form-input" 
+                  value={selectedAdminId} 
+                  onChange={(e) => setSelectedAdminId(e.target.value)}
+                  required={!isLogin && registerRole === 'employee'}
+                >
+                  <option value="">-- Pilih Instansi --</option>
+                  {admins.map(admin => (
+                    <option key={admin.id} value={admin.id}>
+                      {admin.institutionName} (Admin: {admin.username})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {!isLogin && registerRole === 'admin' && (
+              <div className="form-group animate-fade-in">
+                <label className="form-label">Nama Instansi</label>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Contoh: PT. Sukses Makmur" 
+                  value={institutionName}
+                  onChange={(e) => setInstitutionName(e.target.value)}
+                  required={!isLogin && registerRole === 'admin'}
+                />
+              </div>
+            )}
+
+            <button type="submit" className="btn-neon submit-btn" disabled={loading}>
+              {loading ? 'Memproses...' : (isLogin ? 'Masuk ke Sistem' : 'Daftar Sekarang')}
+            </button>
+          </form>
+        )}
       </div>
 
       <style jsx>{`
@@ -278,9 +292,66 @@ export default function LoginPage() {
         }
 
         .submit-btn {
+          width: 100%;
           margin-top: 8px;
-          padding: 14px;
+          padding: 12px;
           font-size: 1rem;
+        }
+
+        .role-btn {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 16px 20px;
+          background: var(--bg-deep);
+          border: 1px solid var(--border-glow);
+          border-radius: 12px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-align: left;
+        }
+        
+        .role-btn:hover {
+          background: var(--bg-card-hover);
+          border-color: var(--primary);
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+        }
+        
+        .role-icon {
+          font-size: 2rem;
+        }
+        
+        .role-text {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        
+        .role-text strong {
+          color: var(--foreground);
+          font-size: 1.05rem;
+        }
+        
+        .role-text span {
+          color: var(--text-muted);
+          font-size: 0.85rem;
+        }
+
+        .back-btn {
+          background: transparent;
+          border: none;
+          color: var(--text-muted);
+          font-size: 0.9rem;
+          cursor: pointer;
+          padding: 0;
+          margin-bottom: 20px;
+          transition: color 0.2s;
+          display: inline-block;
+        }
+
+        .back-btn:hover {
+          color: var(--primary);
         }
 
         .alert {
